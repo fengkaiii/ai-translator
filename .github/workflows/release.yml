@@ -21,8 +21,6 @@ jobs:
             args: --win
           - os: ubuntu-latest
             args: --linux
-            # 仅 Linux 跑扩展 zip，避免三端各传一份
-            pack_extension: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -50,8 +48,7 @@ jobs:
             libxkbcommon-x11-dev \
             libxkbfile-dev \
             libx11-xcb-dev \
-            libxcb1-dev \
-            zip
+            libxcb1-dev
 
       - uses: actions/setup-node@v4
         with:
@@ -67,21 +64,44 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_python: python
 
-      # 浏览器扩展：打 zip 并挂到同一次 GitHub Release（仅 Ubuntu）
-      - name: Build and upload browser extension
-        if: matrix.pack_extension
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # 与桌面解耦：桌面失败时仍可上传扩展 zip
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension zip
         run: |
           set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq zip
           npm run build:extension
           test -f apps/extension/dist/manifest.json
           VER="${GITHUB_REF_NAME#v}"
           OUT="release/ai-translator-extension-${VER}.zip"
           mkdir -p release
           rm -f "$OUT"
-          # zip 根目录即扩展内容，解压后可直接 Load unpacked
           (cd apps/extension/dist && zip -r -q "../../../${OUT}" .)
           ls -la "$OUT"
-          # 桌面包已由 electron-builder 创建 Release；再追加扩展资产
-          gh release upload "$GITHUB_REF_NAME" "$OUT" --clobber
+          echo "EXTENSION_ZIP=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Upload extension to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 桌面包可能尚未创建 Release：没有则先建空 Release
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Release ${GITHUB_REF_NAME}" \
+              --latest=false
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$EXTENSION_ZIP" --clobber
