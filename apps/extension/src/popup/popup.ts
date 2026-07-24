@@ -1,13 +1,40 @@
 import { PAGE_MAX_NODES } from '@ai-translator/translate-core'
-import { getExtensionSettings } from '../lib/settings'
+import {
+  getExtensionSettings,
+  saveExtensionSettings,
+  type PageMode
+} from '../lib/settings'
 
 const status = document.getElementById('status') as HTMLParagraphElement
 const openOptions = document.getElementById('open-options') as HTMLButtonElement
 const translatePage = document.getElementById('translate-page') as HTMLButtonElement
 const clearPage = document.getElementById('clear-page') as HTMLButtonElement
+const modeBilingual = document.getElementById('mode-bilingual') as HTMLButtonElement
+const modeReplace = document.getElementById('mode-replace') as HTMLButtonElement
+
+/** 面板当前选中的整页模式（与 storage 同步） */
+let pageMode: PageMode = 'bilingual'
 
 openOptions.addEventListener('click', () => {
   chrome.runtime.openOptionsPage()
+})
+
+function syncModeUi(mode: PageMode): void {
+  pageMode = mode
+  modeBilingual.setAttribute('aria-pressed', mode === 'bilingual' ? 'true' : 'false')
+  modeReplace.setAttribute('aria-pressed', mode === 'replace' ? 'true' : 'false')
+}
+
+async function setPageMode(mode: PageMode): Promise<void> {
+  syncModeUi(mode)
+  await saveExtensionSettings({ pageMode: mode })
+}
+
+modeBilingual.addEventListener('click', () => {
+  void setPageMode('bilingual')
+})
+modeReplace.addEventListener('click', () => {
+  void setPageMode('replace')
 })
 
 async function activeTab(): Promise<chrome.tabs.Tab> {
@@ -52,7 +79,6 @@ translatePage.addEventListener('click', async () => {
     if (isRestrictedUrl(tab.url)) {
       throw new Error('当前页面无法注入脚本（请换普通网页，勿用 chrome:// / 扩展页）')
     }
-    const settings = await getExtensionSettings()
     const res = await sendToPage<{
       ok: boolean
       truncated?: boolean
@@ -61,7 +87,7 @@ translatePage.addEventListener('click', async () => {
       error?: string
     }>(tab.id!, {
       type: 'page-translate-run',
-      pageMode: settings.pageMode
+      pageMode
     })
 
     if (!res?.ok) throw new Error(res?.error || '翻译失败')
@@ -92,5 +118,6 @@ clearPage.addEventListener('click', async () => {
 })
 
 void getExtensionSettings().then((s) => {
-  status.textContent = `Provider: ${s.provider} · 整页: ${s.pageMode === 'replace' ? '替换' : '双语'}`
+  syncModeUi(s.pageMode)
+  status.textContent = `Provider: ${s.provider}`
 })

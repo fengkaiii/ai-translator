@@ -1,6 +1,8 @@
 import {
   batchTextUnits,
   limitPageUnits,
+  packBatchUnits,
+  parseBatchResult,
   type TextUnit
 } from '@ai-translator/translate-core'
 import { requestTranslate } from '../lib/translate-client'
@@ -8,6 +10,9 @@ import { getExtensionSettings, type PageMode } from '../lib/settings'
 
 const SKIP_SELECTOR =
   'script,style,noscript,code,pre,textarea,input,select,[contenteditable],[data-ai-translator],[data-ai-translator-original]'
+
+/** 批间并发，避免打爆限流又明显缩短墙钟时间 */
+const PAGE_TRANSLATE_CONCURRENCY = 4
 
 type NodeMap = Map<string, Text>
 
@@ -86,6 +91,92 @@ function applyReplace(node: Text, translated: string): void {
   node.parentNode?.replaceChild(wrap, node)
 }
 
+function markFailed(node: Text | undefined): void {
+  node?.parentElement?.setAttribute('data-ai-translator-error', '1')
+}
+
+function applyUnit(mode: PageMode, node: Text, translated: string): void {
+  if (mode === 'bilingual') applyBilingual(node, translated)
+  else applyReplace(node, translated)
+}
+
+/** 固定并发池：完成一条立刻取下一条 */
+async function mapPool<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return
+  const n = Math.max(1, Math.min(concurrency, items.length))
+  let next = 0
+  await Promise.all(
+    Array.from({ length: n }, async () => {
+      while (true) {
+        const i = next++
+        if (i >= items.length) return
+        await fn(items[i])
+      }
+    })
+  )
+}
+
+async function translateBatch(
+  batch: TextUnit[],
+  map: NodeMap,
+  mode: PageMode
+): Promise<number> {
+  let failed = 0
+
+  const markBatchFailed = (): number => {
+    for (const unit of batch) {
+      markFailed(map.get(unit.id))
+      failed += 1
+    }
+    return failed
+  }
+
+  // 单节点：走普通单条路径，避免无意义的分隔符开销
+  if (batch.length === 1) {
+    const unit = batch[0]
+    const node = map.get(unit.id)
+    if (!node || !node.isConnected) return 0
+    try {
+      const result = await requestTranslate({ text: unit.text, mode: 'translate' })
+      applyUnit(mode, node, result)
+    } catch {
+      markFailed(node)
+      failed += 1
+    }
+    return failed
+  }
+
+  try {
+    const raw = await requestTranslate({
+      text: packBatchUnits(batch),
+      mode: 'translate'
+    })
+    const parsed = parseBatchResult(
+      raw,
+      batch.map((u) => u.id)
+    )
+    for (const unit of batch) {
+      const node = map.get(unit.id)
+      if (!node || !node.isConnected) continue
+      const translated = parsed.get(unit.id)
+      if (!translated) {
+        markFailed(node)
+        failed += 1
+        continue
+      }
+      applyUnit(mode, node, translated)
+    }
+  } catch {
+    return markBatchFailed()
+  }
+
+  return failed
+}
+
 async function translatePage(
   mode: PageMode
 ): Promise<{ truncated: boolean; failed: number; nodeCount: number }> {
@@ -95,25 +186,11 @@ async function translatePage(
   const batches = batchTextUnits(limited.units)
   let failed = 0
 
-  for (const batch of batches) {
-    // 批次内串行，避免打爆限流；块与块之间也串行
-    for (const unit of batch) {
-      const node = map.get(unit.id)
-      if (!node || !node.isConnected) continue
-      try {
-        const result = await requestTranslate({
-          text: unit.text,
-          mode: 'translate'
-        })
-        if (mode === 'bilingual') applyBilingual(node, result)
-        else applyReplace(node, result)
-      } catch {
-        failed += 1
-        const parent = node.parentElement
-        parent?.setAttribute('data-ai-translator-error', '1')
-      }
-    }
-  }
+  // 批内合并为一次请求；批间小并发（先 await 再累加，避免 += await 丢计数）
+  await mapPool(batches, PAGE_TRANSLATE_CONCURRENCY, async (batch) => {
+    const n = await translateBatch(batch, map, mode)
+    failed += n
+  })
 
   return { truncated: limited.truncated, failed, nodeCount: limited.units.length }
 }

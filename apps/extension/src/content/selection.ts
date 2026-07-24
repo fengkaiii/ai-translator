@@ -1,189 +1,511 @@
 import { requestTranslate } from '../lib/translate-client'
 import { getExtensionSettings, type TargetLang } from '../lib/settings'
 
-type BubbleState = {
+const HOST_ID = 'ai-translator-selection-host'
+/** 比桌面 32px 更小，减少挡字与误点 */
+const ICON_SIZE = 22
+/** 图标出现后短时间内忽略点击，避免松手 click 落在图标上直接开窗 */
+const ICON_CLICK_GUARD_MS = 400
+
+type UiPhase = 'icon' | 'panel'
+
+type SelectionState = {
   text: string
   result: string
   targetLang: TargetLang | undefined
   loading: boolean
+  phase: UiPhase
+  status: string
+  error: string
+  anchor: { top: number; left: number }
 }
 
-const HOST_ID = 'ai-translator-selection-host'
-
-let state: BubbleState | null = null
+let state: SelectionState | null = null
 let host: HTMLDivElement | null = null
 let shadow: ShadowRoot | null = null
+/** 图标可点击的最早时间戳 */
+let iconClickEnabledAt = 0
+/** 关闭后短暂忽略 mouseup，避免选区仍在时立刻又弹出图标 */
+let suppressShowUntil = 0
+
+const FONT =
+  '"Helvetica Neue","Avenir Next","Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif'
+
+function guessLang(text: string): TargetLang {
+  const zh = (text.match(/[\u4e00-\u9fff]/g) ?? []).length
+  const en = (text.match(/[a-zA-Z]/g) ?? []).length
+  return zh >= en ? 'zh' : 'en'
+}
 
 function ensureHost(): ShadowRoot {
   if (host && shadow) return shadow
   host = document.createElement('div')
   host.id = HOST_ID
-  host.style.all = 'initial'
-  host.style.position = 'fixed'
-  host.style.zIndex = '2147483646'
-  host.style.top = '0'
-  host.style.left = '0'
+  // 零尺寸 + 不接事件：避免盖住整页导致关不掉 / 点不到页面
+  host.style.cssText =
+    'all:initial;position:fixed;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483646;pointer-events:none;'
   document.documentElement.appendChild(host)
   shadow = host.attachShadow({ mode: 'open' })
   shadow.innerHTML = `
     <style>
       :host { all: initial; }
-      .bubble {
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+
+      .icon-btn {
         position: fixed;
-        min-width: 220px;
-        max-width: 360px;
-        background: #111;
-        color: #f5f5f5;
-        border-radius: 10px;
-        box-shadow: 0 8px 28px rgba(0,0,0,.35);
-        font: 13px/1.45 system-ui, sans-serif;
-        padding: 10px;
-      }
-      .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-      button {
-        border: 0;
+        width: ${ICON_SIZE}px;
+        height: ${ICON_SIZE}px;
+        border: none;
         border-radius: 6px;
-        padding: 4px 8px;
-        background: #2a2a2a;
-        color: #fff;
+        padding: 0;
+        background: transparent;
         cursor: pointer;
+        box-shadow: none;
+        z-index: 1;
+        pointer-events: auto;
       }
-      button:hover { background: #3a3a3a; }
-      button:disabled { opacity: .5; cursor: default; }
-      .result {
+      .icon-btn img {
+        display: block;
+        width: ${ICON_SIZE}px;
+        height: ${ICON_SIZE}px;
+        border-radius: 6px;
+        pointer-events: none;
+      }
+      .icon-btn .fallback {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: ${ICON_SIZE}px;
+        height: ${ICON_SIZE}px;
+        border-radius: 6px;
+        background: #1a5cff;
+        color: #fff;
+        font: 600 11px/1 ${FONT};
+      }
+      .icon-btn:hover { filter: brightness(1.06); }
+
+      .panel {
+        position: fixed;
+        width: 360px;
+        max-width: calc(100vw - 16px);
+        max-height: min(280px, calc(100vh - 16px));
+        display: flex;
+        flex-direction: column;
+        padding: 14px 16px 16px;
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,.18);
+        font: 14px/1.5 ${FONT};
+        overflow: auto;
+        z-index: 2;
+        pointer-events: auto;
+        color-scheme: light;
+        background: #ffffff;
+        color: #141822;
+      }
+      .status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .status {
+        color: #667085;
+        font-size: 12px;
+        font-weight: 500;
+        min-width: 0;
+      }
+      .link {
+        border: 0;
+        background: transparent;
+        color: #2f6fed;
+        padding: 0;
+        margin: 0;
+        font: 600 12px/1.2 ${FONT};
+        letter-spacing: .02em;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .link:hover { opacity: .8; text-decoration: underline; }
+      .link:disabled { opacity: .45; cursor: not-allowed; text-decoration: none; }
+      .text {
         white-space: pre-wrap;
         word-break: break-word;
-        min-height: 1.2em;
-        color: #ddd;
+        flex: 1;
+        min-height: 2.4em;
       }
-      .err { color: #f88; }
+      .text.err { color: #c44; }
+      .actions {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .btn {
+        border: 0;
+        border-radius: 999px;
+        padding: 8px 18px;
+        cursor: pointer;
+        font: 600 13px/1.2 ${FONT};
+        letter-spacing: .01em;
+        transition: transform .12s ease, opacity .12s ease, background .15s ease;
+      }
+      .btn:active:not(:disabled) { transform: scale(.97); }
+      .btn:disabled { opacity: .42; cursor: not-allowed; }
+      .btn.primary {
+        color: #2a3a52;
+        background: #e8eef8;
+        box-shadow: 0 1px 2px rgba(0,0,0,.06);
+      }
+      .btn.primary:hover:not(:disabled) { background: #dde6f4; }
+      .btn.soft {
+        background: rgba(47,111,237,.08);
+        color: #141822;
+        font-weight: 500;
+      }
+      .btn.soft:hover:not(:disabled) { background: rgba(47,111,237,.14); }
+      .btn.ghost {
+        margin-left: auto;
+        background: transparent;
+        color: #667085;
+        font-weight: 500;
+        padding: 8px 8px;
+      }
+      .btn.ghost:hover:not(:disabled) { color: #141822; }
+
+      @media (prefers-color-scheme: dark) {
+        .panel {
+          color-scheme: dark;
+          background: #12151c;
+          color: #f0f3f8;
+          box-shadow: 0 12px 40px rgba(0,0,0,.45);
+        }
+        .status { color: #8b93a7; }
+        .link { color: #4d8dff; }
+        .text.err { color: #f88; }
+        .btn.primary {
+          color: #e8eef5;
+          background: #3a4556;
+        }
+        .btn.primary:hover:not(:disabled) { background: #455264; }
+        .btn.soft {
+          background: rgba(255,255,255,.08);
+          color: #f0f3f8;
+        }
+        .btn.soft:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+        .btn.ghost { color: #8b93a7; }
+        .btn.ghost:hover:not(:disabled) { color: #f0f3f8; }
+      }
     </style>
-    <div class="bubble" part="bubble" hidden>
-      <div class="actions">
-        <button data-act="translate" type="button">翻译</button>
-        <button data-act="polish" type="button">润色</button>
-        <button data-act="swap" type="button">→中文</button>
-        <button data-act="copy" type="button">复制</button>
-        <button data-act="close" type="button">关闭</button>
+    <button class="icon-btn" type="button" title="AI Translator" hidden>
+      <span class="fallback">译</span>
+    </button>
+    <div class="panel" hidden>
+      <div class="status-row">
+        <div class="status"></div>
+        <button type="button" class="link" data-act="swap" hidden>→中文</button>
       </div>
-      <div class="result"></div>
+      <div class="text"></div>
+      <div class="actions">
+        <button type="button" class="btn primary" data-act="copy">复制</button>
+        <button type="button" class="btn soft" data-act="polish">润色</button>
+        <button type="button" class="btn ghost" data-act="close">关闭</button>
+      </div>
     </div>
   `
-  shadow.querySelector('.bubble')!.addEventListener('mousedown', (e) => e.stopPropagation())
-  shadow.querySelector('.actions')!.addEventListener('click', onActionClick)
+
+  const iconBtn = shadow.querySelector('.icon-btn') as HTMLButtonElement
+  const logoUrl = chrome.runtime.getURL('icons/icon-128.png')
+  const img = document.createElement('img')
+  img.src = logoUrl
+  img.width = ICON_SIZE
+  img.height = ICON_SIZE
+  img.alt = '译'
+  img.draggable = false
+  img.addEventListener('load', () => {
+    iconBtn.querySelector('.fallback')?.remove()
+    if (!iconBtn.contains(img)) iconBtn.appendChild(img)
+  })
+  img.addEventListener('error', () => {
+    img.remove()
+  })
+  iconBtn.appendChild(img)
+
+  iconBtn.addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  })
+  iconBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // 松手选区后的残留 click 会落在刚出现的图标上，需忽略
+    if (Date.now() < iconClickEnabledAt) return
+    void openPanelAndTranslate()
+  })
+
+  const panel = shadow.querySelector('.panel') as HTMLElement
+  panel.addEventListener('mousedown', (e) => e.stopPropagation())
+  panel.addEventListener('click', (e) => {
+    void onPanelClick(e)
+  })
+
   return shadow
 }
 
-function hideBubble(): void {
+function hideAll(): void {
   state = null
-  const root = ensureHost()
-  const bubble = root.querySelector('.bubble') as HTMLElement
-  bubble.hidden = true
+  suppressShowUntil = Date.now() + 300
+  if (!shadow) return
+  ;(shadow.querySelector('.icon-btn') as HTMLElement).hidden = true
+  ;(shadow.querySelector('.panel') as HTMLElement).hidden = true
 }
 
-function render(): void {
+function placeFixed(el: HTMLElement, top: number, left: number, widthHint: number): void {
+  const t = Math.min(window.innerHeight - 40, Math.max(8, top))
+  const l = Math.min(window.innerWidth - widthHint - 8, Math.max(8, left))
+  el.style.top = `${t}px`
+  el.style.left = `${l}px`
+}
+
+function showIcon(): void {
   if (!state) return
   const root = ensureHost()
-  const bubble = root.querySelector('.bubble') as HTMLElement
-  const result = root.querySelector('.result') as HTMLElement
+  const icon = root.querySelector('.icon-btn') as HTMLElement
+  const panel = root.querySelector('.panel') as HTMLElement
+  panel.hidden = true
+  state.phase = 'icon'
+  placeFixed(icon, state.anchor.top, state.anchor.left, ICON_SIZE)
+  iconClickEnabledAt = Date.now() + ICON_CLICK_GUARD_MS
+  icon.hidden = false
+}
+
+function renderPanel(): void {
+  if (!state || state.phase !== 'panel') return
+  const root = ensureHost()
+  const panel = root.querySelector('.panel') as HTMLElement
+  const status = root.querySelector('.status') as HTMLElement
+  const textEl = root.querySelector('.text') as HTMLElement
   const swap = root.querySelector('[data-act="swap"]') as HTMLButtonElement
   const polish = root.querySelector('[data-act="polish"]') as HTMLButtonElement
+  const copy = root.querySelector('[data-act="copy"]') as HTMLButtonElement
 
-  swap.textContent =
-    !state.targetLang || state.targetLang === 'en' ? '→中文' : '→英文'
+  status.textContent = state.status
+
+  const hasResult = Boolean(state.result)
+  if (hasResult) {
+    const lang = state.targetLang ?? guessLang(state.result || state.text)
+    swap.hidden = false
+    swap.textContent = lang === 'zh' ? '→英文' : '→中文'
+    swap.disabled = state.loading
+  } else {
+    swap.hidden = true
+  }
+
   polish.disabled = !state.result || state.loading
-  result.className = 'result'
-  result.textContent = state.loading ? '翻译中…' : state.result || '选中文字后点击翻译'
-  bubble.hidden = false
+  copy.disabled = !state.result || state.loading
+
+  if (state.error) {
+    textEl.className = 'text err'
+    textEl.textContent = state.error
+  } else {
+    textEl.className = 'text'
+    textEl.textContent = state.result
+  }
+
+  placeFixed(panel, state.anchor.top, state.anchor.left, 360)
+  panel.hidden = false
 }
 
-function placeNearSelection(): void {
-  const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0 || !state) return
-  const rect = sel.getRangeAt(0).getBoundingClientRect()
+async function runTranslate(targetLang?: TargetLang): Promise<void> {
+  if (!state) return
+  state.loading = true
+  state.error = ''
+  state.status = state.status === '切换中…' ? '切换中…' : '翻译中…'
+  renderPanel()
+  try {
+    const result = await requestTranslate({
+      text: state.text,
+      mode: 'translate',
+      targetLang: targetLang ?? state.targetLang
+    })
+    if (!state) return
+    state.result = result
+    state.targetLang = targetLang ?? state.targetLang ?? guessLang(result)
+    state.loading = false
+    state.status = '翻译结果'
+    renderPanel()
+  } catch (err) {
+    if (!state) return
+    state.loading = false
+    state.status = '翻译失败'
+    state.error = err instanceof Error ? err.message : String(err)
+    renderPanel()
+  }
+}
+
+async function openPanelAndTranslate(): Promise<void> {
+  if (!state || state.phase === 'panel') return
   const root = ensureHost()
-  const bubble = root.querySelector('.bubble') as HTMLElement
-  const top = Math.min(window.innerHeight - 20, Math.max(8, rect.bottom + 8))
-  const left = Math.min(window.innerWidth - 240, Math.max(8, rect.left))
-  bubble.style.top = `${top}px`
-  bubble.style.left = `${left}px`
+  ;(root.querySelector('.icon-btn') as HTMLElement).hidden = true
+  state.phase = 'panel'
+  state.result = ''
+  state.error = ''
+  state.loading = true
+  state.status = '翻译中…'
+  // 打开面板时再读设置（图标阶段不阻塞）
+  try {
+    const settings = await getExtensionSettings()
+    if (state && state.targetLang === undefined) {
+      state.targetLang = settings.targetLang
+    }
+  } catch {
+    /* 忽略，沿用已有 targetLang */
+  }
+  renderPanel()
+  await runTranslate()
 }
 
-async function onActionClick(ev: Event): Promise<void> {
+function resolveLanguageSwap(
+  source: string,
+  currentTarget: TargetLang | undefined,
+  translation: string
+): { next: TargetLang; showSource: boolean } {
+  const sourceLang = guessLang(source)
+  const current =
+    currentTarget ??
+    (translation ? guessLang(translation) : sourceLang === 'zh' ? 'en' : 'zh')
+  const next: TargetLang = current === 'zh' ? 'en' : 'zh'
+  return { next, showSource: next === sourceLang }
+}
+
+async function onPanelClick(ev: Event): Promise<void> {
   const btn = (ev.target as HTMLElement).closest('button') as HTMLButtonElement | null
   if (!btn || !state) return
   const act = btn.dataset.act
   if (act === 'close') {
-    hideBubble()
+    hideAll()
     return
   }
   if (act === 'copy') {
     if (state.result) await navigator.clipboard.writeText(state.result)
     return
   }
-  if (act === 'swap') {
-    if (!state.targetLang || state.targetLang === 'en') state.targetLang = 'zh'
-    else state.targetLang = 'en'
-    render()
-    return
-  }
-  if (act === 'translate' || act === 'polish') {
+  if (act === 'polish') {
+    if (!state.result || state.loading) return
     state.loading = true
-    render()
+    state.error = ''
+    state.status = '润色中…'
+    renderPanel()
     try {
       const result = await requestTranslate({
         text: state.text,
-        mode: act === 'polish' ? 'polish' : 'translate',
-        previousTranslation: act === 'polish' ? state.result : undefined,
+        mode: 'polish',
+        previousTranslation: state.result,
         targetLang: state.targetLang
       })
+      if (!state) return
       state.result = result
-    } catch (err) {
-      const root = ensureHost()
-      const resultEl = root.querySelector('.result') as HTMLElement
-      resultEl.className = 'result err'
-      resultEl.textContent = err instanceof Error ? err.message : String(err)
       state.loading = false
+      state.status = '润色结果'
+      renderPanel()
+    } catch (err) {
+      if (!state) return
+      state.loading = false
+      state.status = '润色失败'
+      state.error = err instanceof Error ? err.message : String(err)
+      renderPanel()
+    }
+    return
+  }
+  if (act === 'swap') {
+    if (!state.result || state.loading) return
+    const { next, showSource } = resolveLanguageSwap(
+      state.text,
+      state.targetLang,
+      state.result
+    )
+    if (showSource) {
+      state.targetLang = next
+      state.result = state.text
+      state.error = ''
+      state.status = '翻译结果'
+      renderPanel()
       return
     }
-    state.loading = false
-    render()
+    state.status = '切换中…'
+    await runTranslate(next)
   }
 }
 
-async function onMouseUp(): Promise<void> {
-  // 延迟一帧，避免点击气泡本身时误判
-  await new Promise((r) => setTimeout(r, 10))
+function selectionAnchor(): { top: number; left: number } | null {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return null
+  const rect = sel.getRangeAt(0).getBoundingClientRect()
+  if (rect.width === 0 && rect.height === 0) return null
+  // 放在选区右下外侧，减少落在松手光标正下方
+  return {
+    top: rect.bottom + 6,
+    left: Math.min(rect.right + 6, window.innerWidth - ICON_SIZE - 8)
+  }
+}
+
+function onMouseUp(): void {
+  if (Date.now() < suppressShowUntil) return
+  // 面板打开期间不再因选区变化弹图标
+  if (state?.phase === 'panel') return
+
   const sel = window.getSelection()
   const text = sel?.toString().trim() ?? ''
-  if (!text) return
+  if (!text) {
+    if (state?.phase === 'icon') hideAll()
+    return
+  }
 
-  const settings = await getExtensionSettings()
+  const anchor = selectionAnchor()
+  if (!anchor) return
+
+  // 同一选区重复 mouseup（如点图标被 guard 掉）不重置 guard
+  if (state?.phase === 'icon' && state.text === text) {
+    placeFixed(
+      ensureHost().querySelector('.icon-btn') as HTMLElement,
+      anchor.top,
+      anchor.left,
+      ICON_SIZE
+    )
+    state.anchor = anchor
+    return
+  }
+
   state = {
     text,
     result: '',
-    targetLang: settings.targetLang,
-    loading: false
+    targetLang: undefined,
+    loading: false,
+    phase: 'icon',
+    status: '',
+    error: '',
+    anchor
   }
-  render()
-  placeNearSelection()
+  showIcon()
 }
 
 function onKeyDown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') hideBubble()
+  if (e.key === 'Escape') hideAll()
 }
 
 function onDocMouseDown(e: MouseEvent): void {
-  if (!host) return
+  if (!host || !state) return
   const path = e.composedPath()
   if (path.includes(host)) return
-  hideBubble()
+  hideAll()
 }
 
+// 用 click 之后的时机展示图标，避免与「松手 click」抢同一手势
 document.addEventListener('mouseup', () => {
-  void onMouseUp()
+  window.setTimeout(() => onMouseUp(), 0)
 })
 document.addEventListener('keydown', onKeyDown)
-document.addEventListener('mousedown', onDocMouseDown)
+document.addEventListener('mousedown', onDocMouseDown, true)
 
 console.debug('[ai-translator] selection content script ready')

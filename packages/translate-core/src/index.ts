@@ -9,3 +9,4 @@ export {
   limitPageUnits,
   type TextUnit
 } from './chunk'
+export { packBatchUnits, parseBatchResult } from './batch-format'
