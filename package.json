@@ -19,6 +19,7 @@
   "scripts": {
     "dev": "npm run dev -w ai-translator-desktop",
     "build": "npm run build -w ai-translator-desktop",
+    "build:extension": "npm run build -w ai-translator-extension",
     "dist": "npm run dist -w ai-translator-desktop",
     "dist:mac": "npm run dist:mac -w ai-translator-desktop",
     "dist:win": "npm run dist:win -w ai-translator-desktop",
