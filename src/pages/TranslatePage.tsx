@@ -52,6 +52,13 @@ export default function TranslatePage({ pendingText, onPendingConsumed }: Props)
         placeholder="输入中文或英文…"
         value={input}
         onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter 翻译；Shift+Enter 换行
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            if (!loading && input.trim()) void run('translate')
+          }
+        }}
         rows={6}
       />
 
