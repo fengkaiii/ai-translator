@@ -144,44 +144,84 @@ function guessLang(text: string): TargetLang {
 function popupHtml(
   text: string,
   status: string,
-  options?: { showActions?: boolean }
+  options?: { showActions?: boolean; targetLang?: TargetLang | null }
 ): string {
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-  const extraBtns = options?.showActions
-    ? `<button id="swap">切换</button><button id="polish">润色</button>`
+  const showActions = Boolean(options?.showActions)
+  const dirLabel =
+    options?.targetLang === 'zh'
+      ? '→英文'
+      : options?.targetLang === 'en'
+        ? '→中文'
+        : ''
+  const polishBtn = showActions
+    ? `<button type="button" class="btn soft" id="polish">润色</button>`
     : ''
+  const swapBtn =
+    showActions && dirLabel
+      ? `<button type="button" class="link" id="swap" title="切换为${dirLabel.slice(1)}">${dirLabel}</button>`
+      : ''
   const theme = resolvePopupTheme()
   const isDark = theme === 'dark'
-  const bg = isDark ? '#171d25' : '#ffffff'
-  const textColor = isDark ? '#e8eef5' : '#1a2332'
-  const muted = isDark ? '#8b9bb0' : '#667789'
-  const btnBg = isDark ? '#2a3441' : '#e8edf4'
-  const accent = isDark ? '#3d8bfd' : '#2f6fed'
+  const bg = isDark ? '#12151c' : '#ffffff'
+  const textColor = isDark ? '#f0f3f8' : '#141822'
+  const muted = isDark ? '#8b93a7' : '#667085'
+  const softBg = isDark ? 'rgba(255,255,255,.08)' : 'rgba(47,111,237,.08)'
+  const softHover = isDark ? 'rgba(255,255,255,.12)' : 'rgba(47,111,237,.14)'
+  const accent = isDark ? '#4d8dff' : '#2f6fed'
+  // 主按钮用更柔和的色，避免高饱和蓝突兀
+  const primaryBg = isDark ? '#3a4556' : '#e8eef8'
+  const primaryFg = isDark ? '#e8eef5' : '#2a3a52'
+  const primaryHover = isDark ? '#455264' : '#dde6f4'
+  const font =
+    '"Helvetica Neue","Avenir Next","Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif'
   return `<!doctype html>
 <html data-theme="${theme}"><head><meta charset="UTF-8"/>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;background:${bg};color:${textColor};font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color-scheme:${theme}}
-  .wrap{padding:12px 14px;min-height:100vh}
-  .status{color:${muted};font-size:12px;margin-bottom:8px}
-  .text{white-space:pre-wrap;word-break:break-word}
-  .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
-  button{border:0;border-radius:8px;padding:6px 10px;cursor:pointer;background:${btnBg};color:${textColor}}
-  button.primary{background:${accent};color:#fff}
-  button:disabled{opacity:.5;cursor:not-allowed}
+  html,body{margin:0;background:${bg};color:${textColor};font:14px/1.5 ${font};color-scheme:${theme}}
+  .wrap{padding:14px 16px 16px;min-height:100vh;display:flex;flex-direction:column}
+  .status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .status{color:${muted};font-size:12px;font-weight:500;min-width:0}
+  .link{border:0;background:transparent;color:${accent};padding:0;margin:0;font:12px/1.2 ${font};font-weight:600;letter-spacing:.02em;cursor:pointer;flex-shrink:0}
+  .link:hover{opacity:.8;text-decoration:underline}
+  .link:disabled{opacity:.45;cursor:not-allowed;text-decoration:none}
+  .text{white-space:pre-wrap;word-break:break-word;flex:1}
+  .actions{margin-top:18px;display:flex;align-items:center;gap:10px}
+  .btn{
+    border:0;border-radius:999px;padding:8px 18px;cursor:pointer;
+    font:13px/1.2 ${font};font-weight:600;letter-spacing:.01em;
+    transition:transform .12s ease,opacity .12s ease,background .15s ease,box-shadow .15s ease
+  }
+  .btn:active:not(:disabled){transform:scale(.97)}
+  .btn:disabled{opacity:.42;cursor:not-allowed}
+  .btn.primary{
+    color:${primaryFg};background:${primaryBg};
+    box-shadow:0 1px 2px rgba(0,0,0,.06)
+  }
+  .btn.primary:hover:not(:disabled){background:${primaryHover}}
+  .btn.soft{background:${softBg};color:${textColor};font-weight:500}
+  .btn.soft:hover:not(:disabled){background:${softHover}}
+  .btn.ghost{
+    margin-left:auto;background:transparent;color:${muted};font-weight:500;padding:8px 8px
+  }
+  .btn.ghost:hover:not(:disabled){color:${textColor}}
 </style></head>
 <body>
   <div class="wrap">
-    <div class="status" id="status">${status}</div>
+    <div class="status-row">
+      <div class="status" id="status">${status}</div>
+      ${swapBtn}
+    </div>
     <div class="text" id="text">${escaped}</div>
     <div class="actions">
-      <button class="primary" id="copy">复制</button>
-      ${extraBtns}
-      <button id="close">关闭</button>
+      <button type="button" class="btn primary" id="copy">复制</button>
+      ${polishBtn}
+      <button type="button" class="btn ghost" id="close">关闭</button>
     </div>
   </div>
   <script>
@@ -327,20 +367,19 @@ function destroyAuxWindows(): void {
   }
 }
 
-function loadPopupContent(text: string, status: string, showActions: boolean): void {
+function loadPopupContent(
+  text: string,
+  status: string,
+  options?: { showActions?: boolean; targetLang?: TargetLang | null }
+): void {
   if (!popupWin || popupWin.isDestroyed()) return
   popupWin.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(
-      popupHtml(text, status, { showActions })
-    )}`
+    `data:text/html;charset=utf-8,${encodeURIComponent(popupHtml(text, status, options))}`
   )
 }
 
-function statusForTarget(target: TargetLang | null, kind: 'result' | 'polish'): string {
-  const dir =
-    target === 'zh' ? '→中文' : target === 'en' ? '→英文' : ''
-  if (kind === 'polish') return dir ? `润色结果 ${dir}` : '润色结果'
-  return dir ? `翻译结果 ${dir}` : '翻译结果'
+function statusLabel(kind: 'result' | 'polish'): string {
+  return kind === 'polish' ? '润色结果' : '翻译结果'
 }
 
 async function openPopupWithTranslation(
@@ -358,7 +397,7 @@ async function openPopupWithTranslation(
   popupTargetLang = targetLang ?? null
 
   const point = screen.getCursorScreenPoint()
-  const bg = resolvePopupTheme() === 'dark' ? '#171d25' : '#ffffff'
+  const bg = resolvePopupTheme() === 'dark' ? '#12151c' : '#ffffff'
   const x = point.x + 12
   const y = point.y + 12
 
@@ -409,7 +448,7 @@ async function openPopupWithTranslation(
   }
   const loadingLabel =
     targetLang === 'zh' ? '译为中文…' : targetLang === 'en' ? '译为英文…' : '翻译中…'
-  loadPopupContent('…', loadingLabel, false)
+  loadPopupContent('…', loadingLabel)
   showPopup()
 
   try {
@@ -423,18 +462,21 @@ async function openPopupWithTranslation(
     popupTranslation = result
     // 自动模式下根据译文粗判方向，便于下次「切换」
     popupTargetLang = targetLang ?? guessLang(result)
-    loadPopupContent(result, statusForTarget(popupTargetLang, 'result'), true)
+    loadPopupContent(result, statusLabel('result'), {
+      showActions: true,
+      targetLang: popupTargetLang
+    })
   } catch (err) {
     if (popupSource !== source) return
     const msg = err instanceof Error ? err.message : '翻译失败'
-    loadPopupContent(msg, '出错', false)
+    loadPopupContent(msg, '出错')
   }
 }
 
 async function polishPopupTranslation(): Promise<void> {
   if (!popupSource || !popupTranslation) return
   if (!popupWin || popupWin.isDestroyed()) return
-  loadPopupContent(popupTranslation, '润色中…', false)
+  loadPopupContent(popupTranslation, '润色中…')
   try {
     const result = await callDeepSeek(getSettings(), {
       text: popupSource,
@@ -443,10 +485,16 @@ async function polishPopupTranslation(): Promise<void> {
       targetLang: popupTargetLang ?? undefined
     })
     popupTranslation = result
-    loadPopupContent(result, statusForTarget(popupTargetLang, 'polish'), true)
+    loadPopupContent(result, statusLabel('polish'), {
+      showActions: true,
+      targetLang: popupTargetLang
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : '润色失败'
-    loadPopupContent(msg, '出错', Boolean(popupTranslation))
+    loadPopupContent(msg, '出错', {
+      showActions: Boolean(popupTranslation),
+      targetLang: popupTargetLang
+    })
   }
 }
 
@@ -482,7 +530,10 @@ async function swapPopupLanguage(): Promise<void> {
   if (showSource) {
     popupTargetLang = next
     popupTranslation = popupSource
-    loadPopupContent(popupSource, statusForTarget(next, 'result'), true)
+    loadPopupContent(popupSource, statusLabel('result'), {
+      showActions: true,
+      targetLang: next
+    })
     return
   }
 

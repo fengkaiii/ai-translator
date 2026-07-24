@@ -45,16 +45,22 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <img className="brand-logo" src={logoUrl} width={28} height={28} alt="" />
-          <span>AI Translator</span>
+          <div className="brand-text">
+            <span className="brand-name">AI Translator</span>
+            <span className="brand-tag">中英互译</span>
+          </div>
         </div>
-        <nav className="tabs">
+        <nav className={`tabs tabs-${tab}`}>
+          <span className="tabs-slider" aria-hidden />
           <button
+            type="button"
             className={tab === 'translate' ? 'tab active' : 'tab'}
             onClick={() => setTab('translate')}
           >
             翻译
           </button>
           <button
+            type="button"
             className={tab === 'settings' ? 'tab active' : 'tab'}
             onClick={() => setTab('settings')}
           >

@@ -24,10 +24,10 @@ let mainWindow: BrowserWindow | null = null
 function createWindow(): void {
   const icon = getAppNativeImage()
   mainWindow = new BrowserWindow({
-    width: 880,
-    height: 640,
-    minWidth: 640,
-    minHeight: 480,
+    width: 600,
+    height: 780,
+    minWidth: 400,
+    minHeight: 560,
     title: 'AI Translator',
     ...(icon ? { icon } : {}),
     webPreferences: {
