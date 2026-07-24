@@ -9,7 +9,7 @@ import {
 import { join } from 'path'
 import { getSettings } from './settings'
 import { getSelectedText, getFrontmostAppName, isAppExcluded } from './selection-text'
-import { callDeepSeek } from './deepseek'
+import { callDeepSeek, type TargetLang } from './deepseek'
 import { requestAccessibility } from './accessibility'
 import { getLogoDataUrl } from './logo'
 
@@ -20,6 +20,8 @@ let popupWin: BrowserWindow | null = null
 let lastText = ''
 let popupSource = ''
 let popupTranslation = ''
+/** 当前小窗译文目标语言；null 表示上次为自动判定 */
+let popupTargetLang: TargetLang | null = null
 let running = false
 let handling = false
 let hideTimer: NodeJS.Timeout | null = null
@@ -132,13 +134,26 @@ function iconHtml(): string {
 </body></html>`
 }
 
-function popupHtml(text: string, status: string, options?: { showPolish?: boolean }): string {
+/** 粗判文本主语言，用于切换时翻到另一边 */
+function guessLang(text: string): TargetLang {
+  const zh = (text.match(/[\u4e00-\u9fff]/g) ?? []).length
+  const en = (text.match(/[a-zA-Z]/g) ?? []).length
+  return zh >= en ? 'zh' : 'en'
+}
+
+function popupHtml(
+  text: string,
+  status: string,
+  options?: { showActions?: boolean }
+): string {
   const escaped = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-  const polishBtn = options?.showPolish ? `<button id="polish">润色</button>` : ''
+  const extraBtns = options?.showActions
+    ? `<button id="swap">切换</button><button id="polish">润色</button>`
+    : ''
   const theme = resolvePopupTheme()
   const isDark = theme === 'dark'
   const bg = isDark ? '#171d25' : '#ffffff'
@@ -165,7 +180,7 @@ function popupHtml(text: string, status: string, options?: { showPolish?: boolea
     <div class="text" id="text">${escaped}</div>
     <div class="actions">
       <button class="primary" id="copy">复制</button>
-      ${polishBtn}
+      ${extraBtns}
       <button id="close">关闭</button>
     </div>
   </div>
@@ -178,11 +193,34 @@ function popupHtml(text: string, status: string, options?: { showPolish?: boolea
     if (polish) {
       polish.onclick = async () => {
         polish.disabled = true
+        const swap = document.getElementById('swap')
+        if (swap) swap.disabled = true
         document.getElementById('status').textContent = '润色中…'
         try {
           await window.translatorSelection?.polishSelection()
         } finally {
           polish.disabled = false
+          if (swap) swap.disabled = false
+        }
+      }
+    }
+    const swap = document.getElementById('swap')
+    if (swap) {
+      swap.onclick = async () => {
+        swap.disabled = true
+        const polishBtn = document.getElementById('polish')
+        if (polishBtn) polishBtn.disabled = true
+        document.getElementById('status').textContent = '切换中…'
+        try {
+          if (!window.translatorSelection?.swapSelectionLanguage) {
+            throw new Error('切换功能未就绪，请重启应用')
+          }
+          await window.translatorSelection.swapSelectionLanguage()
+        } catch (err) {
+          document.getElementById('status').textContent =
+            err instanceof Error ? err.message : '切换失败'
+          swap.disabled = false
+          if (polishBtn) polishBtn.disabled = false
         }
       }
     }
@@ -289,16 +327,27 @@ function destroyAuxWindows(): void {
   }
 }
 
-function loadPopupContent(text: string, status: string, showPolish: boolean): void {
+function loadPopupContent(text: string, status: string, showActions: boolean): void {
   if (!popupWin || popupWin.isDestroyed()) return
   popupWin.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(
-      popupHtml(text, status, { showPolish })
+      popupHtml(text, status, { showActions })
     )}`
   )
 }
 
-async function openPopupWithTranslation(source: string): Promise<void> {
+function statusForTarget(target: TargetLang | null, kind: 'result' | 'polish'): string {
+  const dir =
+    target === 'zh' ? '→中文' : target === 'en' ? '→英文' : ''
+  if (kind === 'polish') return dir ? `润色结果 ${dir}` : '润色结果'
+  return dir ? `翻译结果 ${dir}` : '翻译结果'
+}
+
+async function openPopupWithTranslation(
+  source: string,
+  targetLang?: TargetLang,
+  options?: { keepPosition?: boolean }
+): Promise<void> {
   // 从图标切到小窗：不要在 hideIcon 时 app.hide()
   const wasBackground = auxFromBackground || !appHasFocus()
   hideIcon({ handoffToPopup: true })
@@ -306,55 +355,77 @@ async function openPopupWithTranslation(source: string): Promise<void> {
 
   popupSource = source
   popupTranslation = ''
-  if (popupWin && !popupWin.isDestroyed()) {
-    popupWin.destroy()
-    popupWin = null
-  }
+  popupTargetLang = targetLang ?? null
 
   const point = screen.getCursorScreenPoint()
   const bg = resolvePopupTheme() === 'dark' ? '#171d25' : '#ffffff'
-  popupWin = new BrowserWindow({
-    width: 380,
-    height: 280,
-    x: point.x + 12,
-    y: point.y + 12,
-    frame: true,
-    resizable: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    focusable: true,
-    show: false,
-    title: 'AI Translator',
-    backgroundColor: bg,
-    type: process.platform === 'darwin' ? 'panel' : undefined,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false
+  const x = point.x + 12
+  const y = point.y + 12
+
+  // 小窗已打开时复用，避免 destroy→closed→app.hide() 把新内容也关掉
+  if (!popupWin || popupWin.isDestroyed()) {
+    popupWin = new BrowserWindow({
+      width: 380,
+      height: 280,
+      x,
+      y,
+      frame: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: true,
+      show: false,
+      title: 'AI Translator',
+      backgroundColor: bg,
+      type: process.platform === 'darwin' ? 'panel' : undefined,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+    popupWin.setAlwaysOnTop(true, 'floating')
+    popupWin.on('closed', () => {
+      popupWin = null
+      popupSource = ''
+      popupTranslation = ''
+      popupTargetLang = null
+      restorePreviousAppAfterAux()
+    })
+  } else {
+    popupWin.setBackgroundColor(bg)
+    if (!options?.keepPosition) {
+      popupWin.setPosition(x, y)
     }
-  })
-  popupWin.setAlwaysOnTop(true, 'floating')
-  popupWin.on('closed', () => {
-    popupWin = null
-    popupSource = ''
-    popupTranslation = ''
-    restorePreviousAppAfterAux()
-  })
+  }
 
   const showPopup = (): void => {
     if (!popupWin || popupWin.isDestroyed()) return
     popupWin.showInactive()
     setTimeout(() => demoteMainIfStolen(), 40)
   }
-  popupWin.once('ready-to-show', showPopup)
-  loadPopupContent('…', '翻译中…', false)
+  if (!popupWin.isVisible()) {
+    popupWin.once('ready-to-show', showPopup)
+  }
+  const loadingLabel =
+    targetLang === 'zh' ? '译为中文…' : targetLang === 'en' ? '译为英文…' : '翻译中…'
+  loadPopupContent('…', loadingLabel, false)
   showPopup()
 
   try {
-    const result = await callDeepSeek(getSettings(), { text: source, mode: 'translate' })
+    const result = await callDeepSeek(getSettings(), {
+      text: source,
+      mode: 'translate',
+      targetLang
+    })
+    // 期间若又发起了新翻译，丢弃过期结果
+    if (popupSource !== source) return
     popupTranslation = result
-    loadPopupContent(result, '翻译结果', true)
+    // 自动模式下根据译文粗判方向，便于下次「切换」
+    popupTargetLang = targetLang ?? guessLang(result)
+    loadPopupContent(result, statusForTarget(popupTargetLang, 'result'), true)
   } catch (err) {
+    if (popupSource !== source) return
     const msg = err instanceof Error ? err.message : '翻译失败'
     loadPopupContent(msg, '出错', false)
   }
@@ -368,14 +439,54 @@ async function polishPopupTranslation(): Promise<void> {
     const result = await callDeepSeek(getSettings(), {
       text: popupSource,
       mode: 'polish',
-      previousTranslation: popupTranslation
+      previousTranslation: popupTranslation,
+      targetLang: popupTargetLang ?? undefined
     })
     popupTranslation = result
-    loadPopupContent(result, '润色结果', true)
+    loadPopupContent(result, statusForTarget(popupTargetLang, 'polish'), true)
   } catch (err) {
     const msg = err instanceof Error ? err.message : '润色失败'
     loadPopupContent(msg, '出错', Boolean(popupTranslation))
   }
+}
+
+/**
+ * 计算语言切换：翻到另一边。
+ * 若目标语种与原文相同，应直接展示原文（避免中译中/英译英看起来没切换）。
+ */
+function resolveLanguageSwap(
+  source: string,
+  currentTarget: TargetLang | null,
+  translation: string
+): { next: TargetLang; showSource: boolean } {
+  const sourceLang = guessLang(source)
+  const current =
+    currentTarget ??
+    (translation ? guessLang(translation) : sourceLang === 'zh' ? 'en' : 'zh')
+  const next: TargetLang = current === 'zh' ? 'en' : 'zh'
+  return { next, showSource: next === sourceLang }
+}
+
+/** 强制翻到另一边（中↔英） */
+async function swapPopupLanguage(): Promise<void> {
+  if (!popupSource) return
+  if (!popupWin || popupWin.isDestroyed()) return
+
+  const { next, showSource } = resolveLanguageSwap(
+    popupSource,
+    popupTargetLang,
+    popupTranslation
+  )
+
+  // 目标与原文同语种：对调即展示原文
+  if (showSource) {
+    popupTargetLang = next
+    popupTranslation = popupSource
+    loadPopupContent(popupSource, statusForTarget(next, 'result'), true)
+    return
+  }
+
+  await openPopupWithTranslation(popupSource, next, { keepPosition: true })
 }
 
 function sleep(ms: number): Promise<void> {
@@ -576,6 +687,9 @@ export function registerSelectionIpc(): void {
   })
   ipcMain.handle('selection:polish', async () => {
     await polishPopupTranslation()
+  })
+  ipcMain.handle('selection:swap-language', async () => {
+    await swapPopupLanguage()
   })
 }
 

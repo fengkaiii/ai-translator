@@ -21,6 +21,8 @@ export type TranslateRequest = {
   text: string
   mode: 'translate' | 'polish'
   previousTranslation?: string
+  /** 强制目标语言；不传则自动判定 */
+  targetLang?: 'zh' | 'en'
 }
 
 export type TranslateResponse = {

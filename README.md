@@ -14,7 +14,7 @@ DeepSeek 驱动的中英互译桌面应用（Electron + React + Vite）。
 ### 划词翻译
 
 - 选中文字后在光标附近显示应用 Logo 浮标，点击弹出翻译小窗
-- 小窗支持 **复制**、**润色**、关闭
+- 小窗支持 **复制**、**切换**（中↔英重译）、**润色**、关闭
 - 支持拖选、双击/三击选词
 - 优先用辅助功能读取选区，必要时才模拟复制（降低对剪贴板的干扰）
 - 可按应用排除：从「运行中」或「全部应用」选择加入列表，勾选后才真正排除
@@ -79,6 +79,20 @@ git push origin v1.0.0
 推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
 
 打开对应版本页即可下载安装包（`.dmg` / `.exe` / `.deb`）。若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
+
+### 安装与打开（macOS）
+
+当前 Release 中的 `.dmg` **未做 Apple 开发者签名与公证**。从浏览器下载后，双击可能提示「已损坏，无法打开」——这是 Gatekeeper 隔离标记，不是安装包损坏。
+
+1. 打开 `.dmg`，将 `AI Translator.app` 拖到「应用程序」
+2. 在终端执行（清除隔离标记）：
+
+```bash
+xattr -cr "/Applications/AI Translator.app"
+open "/Applications/AI Translator.app"
+```
+
+也可在「系统设置 → 隐私与安全性」中允许仍要打开。正式对外分发需配置 Developer ID 签名 + 公证后，才可正常双击打开。
 
 ### 本地发布（当前平台）
 

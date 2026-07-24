@@ -39,5 +39,6 @@ contextBridge.exposeInMainWorld('translator', {
 
 contextBridge.exposeInMainWorld('translatorSelection', {
   translateSelection: (): Promise<void> => ipcRenderer.invoke('selection:translate'),
-  polishSelection: (): Promise<void> => ipcRenderer.invoke('selection:polish')
+  polishSelection: (): Promise<void> => ipcRenderer.invoke('selection:polish'),
+  swapSelectionLanguage: (): Promise<void> => ipcRenderer.invoke('selection:swap-language')
 })
