@@ -49,14 +49,16 @@ function collectTextNodes(root: ParentNode = document.body): { units: TextUnit[]
   return { units, map }
 }
 
+/** 还原替换模式：每个译文包在带原文属性的 wrapper 上，与混合 inline DOM 无关 */
 function clearTranslation(): void {
   document.querySelectorAll('[data-ai-translator="bilingual"]').forEach((el) => el.remove())
   document.querySelectorAll('[data-ai-translator-original]').forEach((el) => {
     const original = el.getAttribute('data-ai-translator-original')
-    if (original != null && el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE) {
-      el.firstChild.nodeValue = original
-    }
-    el.removeAttribute('data-ai-translator-original')
+    // 有原文才 unwrap；绝不先删属性再丢原文
+    if (original == null) return
+    el.replaceWith(document.createTextNode(original))
+  })
+  document.querySelectorAll('[data-ai-translator-error]').forEach((el) => {
     el.removeAttribute('data-ai-translator-error')
   })
 }
@@ -74,15 +76,18 @@ function applyBilingual(node: Text, translated: string): void {
   else parent.appendChild(span)
 }
 
+/** 按文本节点包一层 marker，避免把原文挂在有多个子节点的 parent 上 */
 function applyReplace(node: Text, translated: string): void {
-  const parent = node.parentElement
-  if (parent && !parent.getAttribute('data-ai-translator-original')) {
-    parent.setAttribute('data-ai-translator-original', node.nodeValue ?? '')
-  }
-  node.nodeValue = translated
+  const original = node.nodeValue ?? ''
+  const wrap = document.createElement('span')
+  wrap.setAttribute('data-ai-translator-original', original)
+  wrap.textContent = translated
+  node.parentNode?.replaceChild(wrap, node)
 }
 
-async function translatePage(mode: PageMode): Promise<{ truncated: boolean; failed: number }> {
+async function translatePage(
+  mode: PageMode
+): Promise<{ truncated: boolean; failed: number; nodeCount: number }> {
   clearTranslation()
   const { units, map } = collectTextNodes()
   const limited = limitPageUnits(units)
@@ -109,7 +114,7 @@ async function translatePage(mode: PageMode): Promise<{ truncated: boolean; fail
     }
   }
 
-  return { truncated: limited.truncated, failed }
+  return { truncated: limited.truncated, failed, nodeCount: limited.units.length }
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

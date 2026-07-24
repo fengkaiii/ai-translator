@@ -1,3 +1,4 @@
+import { PAGE_MAX_NODES } from '@ai-translator/translate-core'
 import { getExtensionSettings } from '../lib/settings'
 
 const status = document.getElementById('status') as HTMLParagraphElement
@@ -23,11 +24,20 @@ translatePage.addEventListener('click', async () => {
     const res = (await chrome.tabs.sendMessage(tabId, {
       type: 'page-translate-run',
       pageMode: settings.pageMode
-    })) as { ok: boolean; truncated?: boolean; failed?: number; error?: string }
+    })) as {
+      ok: boolean
+      truncated?: boolean
+      failed?: number
+      nodeCount?: number
+      error?: string
+    }
 
     if (!res?.ok) throw new Error(res?.error || '翻译失败')
     const parts = ['完成']
-    if (res.truncated) parts.push('页面过大，仅翻译了前 N 个文本块')
+    if (res.truncated) {
+      const n = res.nodeCount ?? PAGE_MAX_NODES
+      parts.push(`页面过大，仅翻译了前 ${n} 个文本块`)
+    }
     if (res.failed) parts.push(`${res.failed} 段失败，已保留原文`)
     status.textContent = parts.join('\n')
   } catch (err) {

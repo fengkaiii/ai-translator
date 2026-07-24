@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-24 fix(extension): 修复整页替换还原与截断提示文案
 - 2026-07-24 fix(extension): 修复扩展构建后 popup/options 资源路径
 - 2026-07-24 docs(browser-extension): 补充扩展使用说明与错误文案打磨
 
