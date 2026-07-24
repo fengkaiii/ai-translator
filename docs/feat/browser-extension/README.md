@@ -9,3 +9,5 @@
 - 初始版本: 1.1.1
 
 ## Commits
+
+- 2026-07-24 docs(browser-extension): 写入浏览器插件与 monorepo 设计规格
