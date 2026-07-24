@@ -58,6 +58,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Ensure app-builder binaries executable
+        shell: bash
+        run: |
+          find node_modules/app-builder-bin -type f \( -name 'app-builder' -o -name 'app-builder_*' -o -name 'app-builder.exe' \) -exec chmod +x {} \;
+          ls -la node_modules/app-builder-bin/*/ 2>/dev/null | head -40
+
       - name: Build and publish desktop
         run: npm run build -w ai-translator-desktop && npx --workspace=ai-translator-desktop electron-builder ${{ matrix.args }} --publish always
         env:

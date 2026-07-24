@@ -40,6 +40,7 @@
     "appId": "com.translater.ai",
     "productName": "AI Translator",
     "electronVersion": "39.8.0",
+    "npmRebuild": false,
     "publish": {
       "provider": "github",
       "owner": "fengkaiii",
