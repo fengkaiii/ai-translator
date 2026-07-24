@@ -62,6 +62,10 @@
       {
         "from": "resources/icon-128.png",
         "to": "icon-128.png"
+      },
+      {
+        "from": "native-host",
+        "to": "native-host"
       }
     ],
     "asarUnpack": [

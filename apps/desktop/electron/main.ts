@@ -18,6 +18,8 @@ import {
 } from './accessibility'
 import { getFrontmostAppName, listSelectableAppNames } from './selection-text'
 import { getAppNativeImage } from './logo'
+import { startNativeBridge, stopNativeBridge } from './native-bridge'
+import { installNativeHostManifest } from './native-host-install'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -133,6 +135,19 @@ app.whenReady().then(() => {
   })
   syncSelectionWatcherFromSettings()
 
+  void startNativeBridge()
+    .then(() => {
+      const installed = installNativeHostManifest()
+      if (!installed.ok) {
+        console.warn('[native-host] install failed:', installed.error, installed.path)
+      } else {
+        console.log('[native-host] manifest installed:', installed.path)
+      }
+    })
+    .catch((err) => {
+      console.warn('[native-bridge] start failed:', err)
+    })
+
   // 只在「没有可见窗口」时恢复主窗（例如 Dock 点击且窗口被 hide）。
   // 不要在每次 activate 时都 show 主窗，否则关划词小窗会把主窗拉出来。
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -159,4 +174,5 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   stopSelectionWatcher()
   unregisterHotkey()
+  stopNativeBridge()
 })
