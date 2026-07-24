@@ -43,14 +43,25 @@ for (const entry of entries) {
 cpSync(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'))
 cpSync(resolve(root, 'icons'), resolve(dist, 'icons'), { recursive: true })
 
+/**
+ * Emit popup/options HTML next to their JS under dist/.
+ * Covers source `./foo.ts`, Vite absolute `/popup/…`, and relative `../../popup/…`
+ * so Load unpacked resolves within dist/ (Task 5 path fix).
+ */
+function rewriteExtensionHtml(html, scriptSrc) {
+  return html
+    .replace(/src="\.\/[^"]+\.(?:ts|js)"/g, `src="${scriptSrc}"`)
+    .replace(/src="(?:\.\/|\.\.\/)+(?:popup|options)\/[^"]+\.(?:js|ts)"/g, `src="${scriptSrc}"`)
+    .replace(/src="\/(?:popup|options)\/[^"]+\.(?:js|ts)"/g, `src="${scriptSrc}"`)
+}
+
 for (const p of [
   { src: 'src/popup/popup.html', dest: 'dist/popup/popup.html', script: './popup.js' },
   { src: 'src/options/options.html', dest: 'dist/options/options.html', script: './options.js' }
 ]) {
   const to = resolve(root, p.dest)
   mkdirSync(dirname(to), { recursive: true })
-  let html = readFileSync(resolve(root, p.src), 'utf8')
-  html = html.replace(/src="\.\/[^"]+\.ts"/, `src="${p.script}"`)
+  const html = rewriteExtensionHtml(readFileSync(resolve(root, p.src), 'utf8'), p.script)
   writeFileSync(to, html)
 }
 

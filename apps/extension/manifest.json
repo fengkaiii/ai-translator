@@ -15,7 +15,7 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting", "nativeMessaging"],
+  "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["https://api.deepseek.com/*"],
   "content_scripts": [
     {

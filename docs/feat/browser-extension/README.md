@@ -10,7 +10,9 @@
 
 ## Commits
 
+- 2026-07-24 fix(extension): 修复扩展构建后 popup/options 资源路径
 - 2026-07-24 docs(browser-extension): 补充扩展使用说明与错误文案打磨
+
 - 2026-07-24 feat(native-messaging): Cursor 经桌面代理供扩展调用
 - 2026-07-24 feat(extension): 整页双语与替换翻译
 - 2026-07-24 feat(extension): 页内划词翻译气泡
@@ -21,7 +23,6 @@
 - 2026-07-24 feat(translate-core): 抽出 DeepSeek client 与 prompts
 - 2026-07-24 chore(monorepo): 初始化 workspaces 与 translate-core 骨架
 - 2026-07-24 docs(browser-extension): 写入浏览器插件与 monorepo 设计规格
-
 
 ## 本地加载扩展
 
