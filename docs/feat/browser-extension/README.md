@@ -9,6 +9,7 @@
 - 初始版本: 1.1.1
 
 ## Commits
+- 2026-07-24 fix(browser-extension): 修复 Native Host 无 node 与整页内容脚本未注入
 - 2026-07-24 fix(browser-extension): 修复分块空集与 Options baseUrl 误导
 
 - 2026-07-24 docs(browser-extension): 完善手测清单与错误文案对齐
@@ -36,10 +37,12 @@
 3. **Edge**：扩展 → 管理扩展 → 加载解压缩的扩展 → 同一 `apps/extension/dist`（Chromium only）
 4. 启动桌面端：`npm run dev`（会安装 Native Messaging Host；Chrome / Edge 各写一份 host 清单目录）
 5. 扩展 Options 可独立配置 DeepSeek；选 Cursor 时需桌面端在线
+6. 若 Options 显示「桌面端离线」：确认桌面端已启动后**刷新 Options 页**；Host 清单 `path` 应指向 `~/.ai-translator/run-host.sh`（用 Electron 跑 host，不依赖系统 `node`/nvm）
 
 ## v1 说明
 
 - localhost Native Messaging 桥接无额外鉴权（本机信任模型）。
+- Chrome 启动 Native Host 时 PATH 不含 nvm；桌面端安装 Host 时会生成 `~/.ai-translator/run-host.sh`（`ELECTRON_RUN_AS_NODE`）。
 - Windows 下 Cursor Native Messaging 注册表写入未实现；v1 以 macOS / Linux 为主。
 - Popup 仅展示当前 `pageMode`（来自设置）；整页模式切换在 Options，不在 Popup。
 - Chrome GUI 手测清单需人工验证（本环境无法自动化）。

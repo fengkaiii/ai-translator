@@ -10,27 +10,59 @@ openOptions.addEventListener('click', () => {
   chrome.runtime.openOptionsPage()
 })
 
-async function activeTabId(): Promise<number | undefined> {
+async function activeTab(): Promise<chrome.tabs.Tab> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  return tab?.id
+  if (!tab?.id) throw new Error('找不到当前标签页')
+  return tab
+}
+
+function isRestrictedUrl(url: string | undefined): boolean {
+  if (!url) return true
+  return /^(chrome|edge|about|devtools|chrome-extension|moz-extension):/i.test(url)
+}
+
+/** 内容脚本未注入时（扩展更新后未刷新页）会报 Receiving end does not exist */
+function isNoReceiverError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /Receiving end does not exist|Could not establish connection/i.test(msg)
+}
+
+async function injectPageTranslate(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content/page-translate.js']
+  })
+}
+
+async function sendToPage<T>(tabId: number, message: unknown): Promise<T> {
+  try {
+    return (await chrome.tabs.sendMessage(tabId, message)) as T
+  } catch (err) {
+    if (!isNoReceiverError(err)) throw err
+    // 已打开的标签页不会自动注入 content script：点扩展图标后用 scripting 补注入
+    await injectPageTranslate(tabId)
+    return (await chrome.tabs.sendMessage(tabId, message)) as T
+  }
 }
 
 translatePage.addEventListener('click', async () => {
   status.textContent = '翻译中…'
   try {
-    const tabId = await activeTabId()
-    if (tabId == null) throw new Error('找不到当前标签页')
+    const tab = await activeTab()
+    if (isRestrictedUrl(tab.url)) {
+      throw new Error('当前页面无法注入脚本（请换普通网页，勿用 chrome:// / 扩展页）')
+    }
     const settings = await getExtensionSettings()
-    const res = (await chrome.tabs.sendMessage(tabId, {
-      type: 'page-translate-run',
-      pageMode: settings.pageMode
-    })) as {
+    const res = await sendToPage<{
       ok: boolean
       truncated?: boolean
       failed?: number
       nodeCount?: number
       error?: string
-    }
+    }>(tab.id!, {
+      type: 'page-translate-run',
+      pageMode: settings.pageMode
+    })
 
     if (!res?.ok) throw new Error(res?.error || '翻译失败')
     const parts = ['完成']
@@ -48,9 +80,11 @@ translatePage.addEventListener('click', async () => {
 
 clearPage.addEventListener('click', async () => {
   try {
-    const tabId = await activeTabId()
-    if (tabId == null) throw new Error('找不到当前标签页')
-    await chrome.tabs.sendMessage(tabId, { type: 'page-translate-clear' })
+    const tab = await activeTab()
+    if (isRestrictedUrl(tab.url)) {
+      throw new Error('当前页面无法注入脚本（请换普通网页，勿用 chrome:// / 扩展页）')
+    }
+    await sendToPage(tab.id!, { type: 'page-translate-clear' })
     status.textContent = '已清除译文 / 还原原文'
   } catch (err) {
     status.textContent = err instanceof Error ? err.message : String(err)
