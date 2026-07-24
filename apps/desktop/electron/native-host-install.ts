@@ -1,6 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, writeFileSync, realpathSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, writeFileSync, realpathSync, unlinkSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { app } from 'electron'
 
 /** 与 apps/extension/manifest.json 的 key 对应的稳定扩展 ID */
@@ -43,6 +43,26 @@ function resolveHostMjs(): string {
 }
 
 /**
+ * Native Messaging 启动的可执行文件。
+ * 打包后 macOS 优先用 Helper：避免 Chrome 拉起与主程序同名二进制时误激活 GUI。
+ */
+function resolveNodeRuntime(): string {
+  if (process.platform === 'darwin' && app.isPackaged) {
+    const exeDir = dirname(process.execPath)
+    const name = 'AI Translator'
+    const helper = join(
+      exeDir,
+      '../Frameworks',
+      `${name} Helper.app`,
+      'Contents/MacOS',
+      `${name} Helper`
+    )
+    if (existsSync(helper)) return helper
+  }
+  return process.execPath
+}
+
+/**
  * Chrome 启动 Native Host 时 PATH 极短（无 nvm），`node` 常找不到。
  * 用 Electron 的 ELECTRON_RUN_AS_NODE 跑 host.mjs，不依赖系统 node。
  */
@@ -50,7 +70,7 @@ function writeGeneratedLauncher(hostMjs: string): string {
   const dir = join(homedir(), '.ai-translator')
   mkdirSync(dir, { recursive: true })
   const launcher = join(dir, process.platform === 'win32' ? 'run-host.cmd' : 'run-host.sh')
-  const electronPath = process.execPath
+  const electronPath = resolveNodeRuntime()
 
   if (process.platform === 'win32') {
     // Windows：cmd 包装；仍依赖本机能跑 Electron
@@ -93,7 +113,7 @@ function hostDirs(): string[] {
   ]
 }
 
-/** 安装/更新 Chromium Native Messaging Host 清单 */
+/** 安装/更新 Chromium Native Messaging Host 清单（每次启动都应调用，刷新绝对路径） */
 export function installNativeHostManifest(): { ok: boolean; path: string; error?: string } {
   const hostMjs = resolveHostMjs()
   if (!existsSync(hostMjs)) {
@@ -119,7 +139,6 @@ export function installNativeHostManifest(): { ok: boolean; path: string; error?
       lastPath = join(dir, `${NATIVE_HOST_NAME}.json`)
       writeFileSync(lastPath, JSON.stringify(manifest, null, 2), 'utf8')
     }
-    // 同时把 port 文件路径提示写到 userData，供 host 读取
     return { ok: true, path: lastPath }
   } catch (err) {
     return {
@@ -127,5 +146,14 @@ export function installNativeHostManifest(): { ok: boolean; path: string; error?
       path: lastPath,
       error: err instanceof Error ? err.message : String(err)
     }
+  }
+}
+
+/** 退出时清掉 port 文件，避免扩展误判「有 port 但连不上」 */
+export function clearNativeBridgePortFile(): void {
+  try {
+    unlinkSync(join(homedir(), '.ai-translator', 'native-bridge-port'))
+  } catch {
+    /* ignore */
   }
 }

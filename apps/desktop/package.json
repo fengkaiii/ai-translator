@@ -1,6 +1,6 @@
 {
   "name": "ai-translator-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "AI translator desktop (Electron)",
   "private": true,
   "homepage": "https://github.com/fengkaiii/ai-translator",
@@ -17,7 +17,7 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
-    "release": "npm run build && electron-builder --publish always"
+    "release": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "@ai-translator/translate-core": "*",
@@ -46,7 +46,8 @@
       "provider": "github",
       "owner": "fengkaiii",
       "repo": "ai-translator",
-      "releaseType": "release"
+      "releaseType": "release",
+      "publishAutoUpdate": false
     },
     "directories": {
       "output": "../../release"
@@ -90,6 +91,9 @@
         "nsis"
       ],
       "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "differentialPackage": false
     },
     "linux": {
       "target": [

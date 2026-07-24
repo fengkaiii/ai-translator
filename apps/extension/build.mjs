@@ -40,8 +40,23 @@ for (const entry of entries) {
   })
 }
 
-cpSync(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'))
 cpSync(resolve(root, 'icons'), resolve(dist, 'icons'), { recursive: true })
+
+// 版本与仓库根 package.json 对齐，写入 dist/manifest（避免扩展与桌面版本漂移）
+const repoVersion = JSON.parse(
+  readFileSync(resolve(root, '../../package.json'), 'utf8')
+).version
+const manifest = JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8'))
+manifest.version = repoVersion
+writeFileSync(resolve(dist, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+// 同步源文件，便于 Load unpacked 以外的场景也一致
+writeFileSync(resolve(root, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+const extPkgPath = resolve(root, 'package.json')
+const extPkg = JSON.parse(readFileSync(extPkgPath, 'utf8'))
+if (extPkg.version !== repoVersion) {
+  extPkg.version = repoVersion
+  writeFileSync(extPkgPath, JSON.stringify(extPkg, null, 2) + '\n')
+}
 
 /**
  * Emit popup/options HTML next to their JS under dist/.

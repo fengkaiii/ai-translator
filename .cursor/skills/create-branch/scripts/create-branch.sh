@@ -67,17 +67,34 @@ mkdir -p "${DOCS_DIR}"
 OLD_VERSION="$(node -p "require('./package.json').version")"
 NEW_VERSION="$(node -e "
 const fs = require('fs');
-const p = 'package.json';
-const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
-const parts = pkg.version.split('.').map(Number);
-if (parts.length !== 3 || parts.some(isNaN)) {
-  console.error('version 格式须为 x.y.z');
+const paths = [
+  'package.json',
+  'apps/desktop/package.json',
+  'apps/extension/package.json',
+  'apps/extension/manifest.json'
+];
+let next = null;
+for (const p of paths) {
+  if (!fs.existsSync(p)) continue;
+  const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+  if (!pkg.version) continue;
+  const parts = String(pkg.version).split('.').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) {
+    console.error('version 格式须为 x.y.z: ' + p);
+    process.exit(1);
+  }
+  if (next == null) {
+    parts[2] += 1;
+    next = parts.join('.');
+  }
+  pkg.version = next;
+  fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
+}
+if (!next) {
+  console.error('未找到可更新的 version');
   process.exit(1);
 }
-parts[2] += 1;
-pkg.version = parts.join('.');
-fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
-console.log(pkg.version);
+console.log(next);
 ")"
 
 CREATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -107,7 +124,7 @@ const body = [
 fs.writeFileSync(path, body, 'utf8');
 " "${DOCS_DIR}/README.md" "$BRANCH_NAME" "$REQUIREMENT" "$CREATED_AT" "$NEW_VERSION"
 
-git add package.json "${DOCS_DIR}/README.md"
+git add package.json apps/desktop/package.json apps/extension/package.json apps/extension/manifest.json "${DOCS_DIR}/README.md"
 git commit -m "chore: init branch ${BRANCH_NAME} (v${NEW_VERSION})"
 
 echo "==> 版本: ${OLD_VERSION} → ${NEW_VERSION}"

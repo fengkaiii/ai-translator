@@ -14,18 +14,12 @@ const statusEl = document.getElementById('status') as HTMLParagraphElement
 const saveBtn = document.getElementById('save') as HTMLButtonElement
 
 const desktopStatusEl = document.getElementById('desktop-status') as HTMLParagraphElement
+const refreshDesktopBtn = document.getElementById('refresh-desktop') as HTMLButtonElement
 
 const FIXED_BASE_URL = 'https://api.deepseek.com'
 
-async function load(): Promise<void> {
-  const s = await getExtensionSettings()
-  providerEl.value = s.provider
-  // v1 host_permissions 仅放行 api.deepseek.com，UI 锁定默认值
-  baseUrlEl.value = FIXED_BASE_URL
-  apiKeyEl.value = s.deepseek.apiKey
-  modelEl.value = s.deepseek.model
-  pageModeEl.value = s.pageMode
-
+async function refreshDesktopStatus(): Promise<void> {
+  desktopStatusEl.textContent = '检测中…'
   try {
     const status = (await chrome.runtime.sendMessage({ type: 'desktop-status' })) as {
       ok?: boolean
@@ -44,6 +38,21 @@ async function load(): Promise<void> {
     desktopStatusEl.textContent = '桌面端离线：请打开 AI Translator'
   }
 }
+
+async function load(): Promise<void> {
+  const s = await getExtensionSettings()
+  providerEl.value = s.provider
+  // v1 host_permissions 仅放行 api.deepseek.com，UI 锁定默认值
+  baseUrlEl.value = FIXED_BASE_URL
+  apiKeyEl.value = s.deepseek.apiKey
+  modelEl.value = s.deepseek.model
+  pageModeEl.value = s.pageMode
+  await refreshDesktopStatus()
+}
+
+refreshDesktopBtn.addEventListener('click', () => {
+  void refreshDesktopStatus()
+})
 
 saveBtn.addEventListener('click', async () => {
   statusEl.textContent = '保存中…'

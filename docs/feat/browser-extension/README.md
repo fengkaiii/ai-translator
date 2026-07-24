@@ -39,7 +39,12 @@
 3. **Edge**：扩展 → 管理扩展 → 加载解压缩的扩展 → 同一 `apps/extension/dist`（Chromium only）
 4. 启动桌面端：`npm run dev`（会安装 Native Messaging Host；Chrome / Edge 各写一份 host 清单目录）
 5. 扩展 Options 可独立配置 DeepSeek；选 Cursor 时需桌面端在线
-6. 若 Options 显示「桌面端离线」：确认桌面端已启动后**刷新 Options 页**；Host 清单 `path` 应指向 `~/.ai-translator/run-host.sh`（用 Electron 跑 host，不依赖系统 `node`/nvm）
+6. 若 Options 显示「桌面端离线」：
+   1. 确认已打开 **安装版** AI Translator（不是只装了扩展）
+   2. **完全退出**桌面端再打开一次（会重写 `~/.ai-translator/run-host.sh` 为当前安装路径）
+   3. **重启 Chrome / Edge**，再打开 Options 点「重新检测」
+   4. 扩展须用带 `key` 的包（Release zip / `apps/extension/dist`），ID 应为 `facimohbibpamgdkbigdabhomohndbla`
+   5. Host 清单 `path` 应指向 `~/.ai-translator/run-host.sh`（用 Electron `ELECTRON_RUN_AS_NODE`，不依赖系统 node）
 
 ## v1 说明
 

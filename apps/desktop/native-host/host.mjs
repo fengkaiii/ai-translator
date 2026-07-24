@@ -70,6 +70,16 @@ async function handle(msg) {
   }
 }
 
+let pending = 0
+async function handleSafe(msg) {
+  pending += 1
+  try {
+    await handle(msg)
+  } finally {
+    pending -= 1
+  }
+}
+
 // Chrome 用裸 stdin 二进制帧；用手动缓冲而非 readline
 let buf = Buffer.alloc(0)
 process.stdin.on('readable', () => {
@@ -82,7 +92,7 @@ process.stdin.on('readable', () => {
       const json = buf.subarray(4, 4 + len).toString('utf8')
       buf = buf.subarray(4 + len)
       try {
-        void handle(JSON.parse(json))
+        void handleSafe(JSON.parse(json))
       } catch (err) {
         sendMessage({
           ok: false,
@@ -93,4 +103,11 @@ process.stdin.on('readable', () => {
   }
 })
 
-process.stdin.on('end', () => process.exit(0))
+// 等进行中的请求写完再退出，避免 Chrome 刚连上就看到空响应
+process.stdin.on('end', () => {
+  const wait = () => {
+    if (pending <= 0) process.exit(0)
+    else setTimeout(wait, 20)
+  }
+  wait()
+})

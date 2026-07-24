@@ -82,11 +82,32 @@ jobs:
           test -f "$DEST/package.json"
           test ! -L "$DEST"
 
-      - name: Build and publish desktop
-        run: npm run build -w ai-translator-desktop && npx --workspace=ai-translator-desktop electron-builder ${{ matrix.args }} --publish always
+      # 不走 electron-builder publish：避免上传 .blockmap / latest*.yml（自动更新元数据，本项目未使用）
+      - name: Build desktop
+        run: npm run build -w ai-translator-desktop && npx --workspace=ai-translator-desktop electron-builder ${{ matrix.args }} --publish never
+        env:
+          npm_config_python: python
+
+      - name: Upload installers to GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          npm_config_python: python
+        run: |
+          set -euo pipefail
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Release ${GITHUB_REF_NAME}" \
+              --latest=false
+          fi
+          shopt -s nullglob
+          files=(release/*.dmg release/*.exe release/*.deb)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No installer artifacts found in release/"
+            ls -la release/ || true
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
 
   # 与桌面解耦：桌面失败时仍可上传扩展 zip
   extension:

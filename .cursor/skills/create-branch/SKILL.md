@@ -20,7 +20,7 @@ disable-model-invocation: true
 1. 解析 `$message` → 得到 `BRANCH_NAME` + `REQUIREMENT`（需求描述）
 2. 基于 `main` 创建并切换到新分支
 3. 写入 `docs/<分支名>/README.md`（**文件顶部为需求描述**）
-4. 根目录 `package.json` 的 `version` 修订号 +1，并提交
+4. 根目录与 `apps/desktop`、`apps/extension`（含 `manifest.json`）的 `version` 修订号同步 +1，并提交
 
 ## 解析 $message
 
@@ -90,7 +90,7 @@ node -p "require('./package.json').version"
   → fetch & checkout main（拉取最新）
   → git checkout -b <branch>
   → 写入 docs/<branch>/README.md（顶部=需求描述）
-  → package.json version 修订号 +1
+  → 根 / desktop / extension（含 manifest）version 同步修订号 +1
   → commit 版本与 docs 初始化
 ```
 
@@ -142,31 +142,49 @@ mkdir -p "docs/${BRANCH_NAME}"
 
 ### Step 3: 自增 package.json version
 
-仅修改**根目录** `package.json` 的 `version` 字段：修订号（第三段）+1。
+同步修改以下文件的 `version` 字段：修订号（第三段）+1（以根目录当前版本为准）：
+
+- `package.json`
+- `apps/desktop/package.json`
+- `apps/extension/package.json`
+- `apps/extension/manifest.json`
 
 示例：`0.0.26` → `0.0.27`
 
 ```bash
 NEW_VERSION=$(node -e "
 const fs = require('fs');
-const p = 'package.json';
-const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
-const parts = pkg.version.split('.').map(Number);
-if (parts.length !== 3 || parts.some(isNaN)) {
-  console.error('version 格式须为 x.y.z');
-  process.exit(1);
+const paths = [
+  'package.json',
+  'apps/desktop/package.json',
+  'apps/extension/package.json',
+  'apps/extension/manifest.json'
+];
+let next = null;
+for (const p of paths) {
+  if (!fs.existsSync(p)) continue;
+  const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+  if (!pkg.version) continue;
+  const parts = String(pkg.version).split('.').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) {
+    console.error('version 格式须为 x.y.z: ' + p);
+    process.exit(1);
+  }
+  if (next == null) {
+    parts[2] += 1;
+    next = parts.join('.');
+  }
+  pkg.version = next;
+  fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
 }
-parts[2] += 1;
-pkg.version = parts.join('.');
-fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
-console.log(pkg.version);
+console.log(next);
 ")
 ```
 
 ### Step 4: 提交初始化改动
 
 ```bash
-git add package.json "docs/${BRANCH_NAME}/"
+git add package.json apps/desktop/package.json apps/extension/package.json apps/extension/manifest.json "docs/${BRANCH_NAME}/"
 git commit -m "$(cat <<EOF
 chore: init branch ${BRANCH_NAME} (v${NEW_VERSION})
 EOF
@@ -197,7 +215,7 @@ bash .cursor/skills/create-branch/scripts/create-branch.sh "<branch-name>" "<req
 - **禁止** `git reset --hard`、`git clean -fdx` 等破坏性命令
 - **禁止** 修改 git config
 - 不要跳过 pre-commit hook（`--no-verify`）
-- 仅修改根目录 `package.json` 的 `version`，与子包 `package.json` 无关
+- 同步修改根目录、`apps/desktop`、`apps/extension` 的 `package.json` 与扩展 `manifest.json` 的 `version`
 - 不要修改用户未要求的其他文件
 
 ## 完成报告
