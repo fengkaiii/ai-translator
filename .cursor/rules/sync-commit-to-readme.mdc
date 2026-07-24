@@ -1,0 +1,84 @@
+---
+description: 每次 commit 时将中文 commit 信息同步写入 docs/<分支名>/README.md
+alwaysApply: true
+---
+
+# Commit 同步到 docs/<分支名>/README.md
+
+每次创建 git commit 时，将本次 commit 信息同步到当前分支的文档入口：
+
+```text
+docs/<当前分支名>/README.md
+```
+
+与 `CHANGELOG.md` / `yarn changelog` **无关**，不要混用。
+
+## Commit message 规范（本规则强制）
+
+格式（commitlint：`type` + **必填** `scope`）：
+
+```text
+<type>(<scope>): <中文描述>
+```
+
+要求：
+
+- **描述必须用中文**（说明「为什么 / 做了什么」），不要用英文句子作 subject
+- `type` / `scope` 保持英文标识（如 `feat`、`fix`、`ProductPool`）
+- 一行 subject，简洁；不要在 subject 里堆文件路径
+- 用户已给出中文 message 时直接使用；用户给了英文描述时，改写成中文再提交（保留其 type/scope 意图）
+
+允许的 type：`feat` | `fix` | `docs` | `style` | `refactor` | `perf` | `test` | `build` | `release` | `chore` | `revert`
+
+示例：
+
+```text
+feat(ReceiptNotice): 入账通知列表支持按状态筛选
+fix(ProductPool): 修复 URL 校验重复报错
+docs(readme): 按仓库与 Cursor 配置重写项目说明
+chore(branch): 初始化分支 chore/upgrade-react-19（v0.1.1）
+```
+
+## 跳过条件
+
+当前分支为以下之一时**不执行**同步：
+
+- `main`
+- `staging`
+- `test`
+- detached HEAD（无分支名）
+
+## 执行时机
+
+在**成功创建 commit 之前**执行：把 README 条目与业务改动放进**同一次** commit。
+
+适用于：用户要求 commit、commit-and-push、`/commit-push`、diff 面板 Commit & Push，或任何由助手发起的 commit。
+
+## 工作流
+
+1. `BRANCH=$(git branch --show-current)`；若为空或命中跳过条件 → 跳过同步（仍须用中文 subject 提交）
+2. 按上方规范确定本次 commit message（中文描述）
+3. 确保目录与文件存在：
+   - `mkdir -p "docs/$BRANCH"`
+   - 若 `docs/$BRANCH/README.md` 不存在，按 `/create-branch` 模板创建（须含 `## Commits`）
+4. 若文件中无 `## Commits` 标题，在文件末尾追加该标题
+5. 在 `## Commits` 下方**追加一行**（最新在上）：
+
+```markdown
+- YYYY-MM-DD <commit-subject>
+```
+
+- 日期为本地当天 `YYYY-MM-DD`
+- `<commit-subject>` 为 commit message **第一行**（含中文描述的完整 subject）
+- 若已存在完全相同的一行，不要重复追加
+
+6. `git add "docs/$BRANCH/README.md"`，与其他待提交文件一起 commit
+7. 不要单独为 README 再开一次 commit（除非用户只要同步、没有其他改动）
+
+## 禁止
+
+- 不要写入或修改根目录 `CHANGELOG.md`
+- 不要运行 `yarn changelog` / `conventional-changelog`
+- 不要在 merge commit / 空 commit（无有效 subject）时强行同步
+- 不要改写 `## Commits` 以外的既有正文
+- 不要用纯英文 subject 提交（专有名词、API/组件名可保留英文）

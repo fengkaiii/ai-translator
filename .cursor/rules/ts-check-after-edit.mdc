@@ -1,0 +1,34 @@
+---
+description: 代码改动完成后必须执行 TypeScript 类型检查并修复报错
+alwaysApply: true
+---
+
+# 改完代码必须做 TS 类型检查
+
+凡**修改或新增**了 `.ts` / `.tsx` 文件，在结束本轮任务前必须：
+
+1. **用 `Shell` 实际执行** `tsc --noEmit`（不要只口头建议用户本地跑）。
+2. **按改动范围选 tsconfig**（可多跑，以覆盖所有受影响包）：
+   - `apps/personal/**` → `npx tsc --noEmit -p apps/personal/tsconfig.json`
+   - `apps/enterprise/**` → `npx tsc --noEmit -p apps/enterprise/tsconfig.json`
+   - `packages/component/**` → `npx tsc --noEmit -p packages/component/tsconfig.json`
+   - `packages/service/**` → `npx tsc --noEmit -p packages/service/tsconfig.json`
+   - `packages/hooks/**` → `npx tsc --noEmit -p packages/hooks/tsconfig.json`
+   - `packages/utils/**` → `npx tsc --noEmit -p packages/utils/tsconfig.json`
+   - `packages/config/**` → `npx tsc --noEmit -p packages/config/tsconfig.json`
+   - `packages/modules/**` → `npx tsc --noEmit -p packages/modules/tsconfig.json`
+   - 跨包改动时，对**所有涉及包**各跑一次。
+3. **有报错必须修到通过**，再向用户汇报完成；**不得带着已知 TS 错误结束**。
+4. 若 `tsc` 失败，优先修**本次改动引入**的错误；若同一包内存在与本次无关的历史 TS 错误，**也应一并修复**，确保所跑 tsconfig **exit code 为 0** 后再结束任务。
+5. 可辅以 `ReadLints` 查看 IDE 诊断，但**不能替代** `tsc --noEmit`。
+6. 向用户汇报完成时，须说明已执行的 `tsc` 命令及结果（通过 / 已修复项）。
+
+## 示例
+
+```bash
+# 改了 QuotationGrid（personal）和 XiShu 组件（component）
+npx tsc --noEmit -p apps/personal/tsconfig.json
+npx tsc --noEmit -p packages/component/tsconfig.json
+```
+
+仅改 markdown、样式、配置且无 TS 影响时可跳过。
