@@ -7,12 +7,37 @@ import { app } from 'electron'
 export const EXTENSION_ID = 'facimohbibpamgdkbigdabhomohndbla'
 export const NATIVE_HOST_NAME = 'com.aitranslator.native'
 
+/** 解析 native-host 脚本路径（开发态 getAppPath 可能指向 out/） */
+function hostScriptCandidates(file: string): string[] {
+  // 打包：extraResources → resources/native-host/
+  if (app.isPackaged) {
+    return [join(process.resourcesPath, 'native-host', file)]
+  }
+
+  // 开发：依次尝试 getAppPath → cwd(apps/desktop|repo root) → __dirname 相对
+  const out: string[] = []
+  try {
+    out.push(join(app.getAppPath(), 'native-host', file))
+  } catch {
+    // ignore
+  }
+  out.push(join(process.cwd(), 'native-host', file))
+  out.push(join(process.cwd(), 'apps/desktop/native-host', file))
+  // electron-vite main 编译到 out/main，上两级即 apps/desktop
+  out.push(join(__dirname, '../../native-host', file))
+  return out
+}
+
 function hostScriptPath(): string {
-  // 开发：源码目录；打包：resources/native-host/run-host.sh
   const file = process.platform === 'win32' ? 'host.mjs' : 'run-host.sh'
-  const raw = !app.isPackaged
-    ? join(app.getAppPath(), 'native-host', file)
-    : join(process.resourcesPath, 'native-host', file)
+  const candidates = hostScriptCandidates(file)
+  let raw = candidates[0] ?? join(process.cwd(), 'native-host', file)
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      raw = p
+      break
+    }
+  }
   // Chrome 要求 path 为绝对路径
   try {
     return realpathSync(raw)
