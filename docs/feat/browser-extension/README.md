@@ -10,5 +10,6 @@
 
 ## Commits
 
+- 2026-07-24 feat(translate-core): 抽出 DeepSeek client 与 prompts
 - 2026-07-24 chore(monorepo): 初始化 workspaces 与 translate-core 骨架
 - 2026-07-24 docs(browser-extension): 写入浏览器插件与 monorepo 设计规格
