@@ -64,6 +64,27 @@ npm run dist:linux  # .deb
 
 产物在 `release/`。
 
+## 发布到 GitHub Releases
+
+仓库：https://github.com/fengkaiii/ai-translator
+
+### 用 Actions（推荐）
+
+```bash
+# 先把代码推到 master，再打 tag
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 **Draft Release**。到 [Releases](https://github.com/fengkaiii/ai-translator/releases) 检查产物，确认后点 Publish。
+
+### 本地发布（当前平台）
+
+```bash
+export GH_TOKEN=你的_GitHub_PAT   # 需要 repo 权限
+npm run release
+```
+
 ## 快速使用
 
 1. 打开「设置」，填写 DeepSeek API Key（可按需修改 baseUrl / model）
