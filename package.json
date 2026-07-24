@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "AI translator powered by DeepSeek",
   "main": "./out/main/index.js",
-  "author": "translater",
+  "author": {
+    "name": "fengkaiii",
+    "email": "fengkaiii@users.noreply.github.com"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -83,7 +86,8 @@
         "deb"
       ],
       "icon": "resources/icon.png",
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "fengkaiii <fengkaiii@users.noreply.github.com>"
     }
   }
 }
