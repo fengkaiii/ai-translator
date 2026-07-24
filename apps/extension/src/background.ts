@@ -47,6 +47,14 @@ async function handleTranslate(msg: TranslateMessage): Promise<TranslateResponse
       return { ok: true, result: res.result }
     }
 
+    // 扩展侧独立文案（与桌面「设置中填写」区分）
+    if (!settings.deepseek.apiKey.trim()) {
+      return {
+        ok: false,
+        error: '请先在扩展设置中填写 DeepSeek API Key'
+      }
+    }
+
     const result = await callDeepSeek(settings.deepseek, request)
     return { ok: true, result }
   } catch (err) {

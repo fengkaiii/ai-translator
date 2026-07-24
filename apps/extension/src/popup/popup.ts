@@ -38,7 +38,8 @@ translatePage.addEventListener('click', async () => {
       const n = res.nodeCount ?? PAGE_MAX_NODES
       parts.push(`页面过大，仅翻译了前 ${n} 个文本块`)
     }
-    if (res.failed) parts.push(`${res.failed} 段失败，已保留原文`)
+    // 与手测/规格表「单块失败 → 该段保留原文」对齐
+    if (res.failed) parts.push(`${res.failed} 段失败，该段保留原文`)
     status.textContent = parts.join('\n')
   } catch (err) {
     status.textContent = err instanceof Error ? err.message : String(err)
