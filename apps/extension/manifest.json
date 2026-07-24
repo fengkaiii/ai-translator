@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "AI Translator",
+  "version": "0.1.0",
+  "description": "网页划词与整页翻译（DeepSeek / Cursor via desktop）",
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "AI Translator",
+    "default_icon": {
+      "128": "icons/icon-128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "nativeMessaging"],
+  "host_permissions": ["https://api.deepseek.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/selection.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/page-translate.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "128": "icons/icon-128.png"
+  }
+}

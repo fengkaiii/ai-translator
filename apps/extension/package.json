@@ -1,0 +1,19 @@
+{
+  "name": "ai-translator-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@ai-translator/translate-core": "*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vite-plugin-static-copy": "^2.2.0"
+  }
+}

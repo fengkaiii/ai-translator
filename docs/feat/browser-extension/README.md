@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-24 feat(extension): 搭建 Chromium MV3 扩展脚手架
 - 2026-07-24 feat(translate-core): 增加整页文本分块与上限逻辑
 - 2026-07-24 refactor(desktop): 迁入 apps/desktop 并改用 translate-core
 - 2026-07-24 feat(translate-core): 抽出 DeepSeek client 与 prompts
