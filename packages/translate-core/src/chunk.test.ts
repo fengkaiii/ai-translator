@@ -48,4 +48,15 @@ describe('limitPageUnits', () => {
     expect(out.units).toEqual([{ id: '1', text: 'hello' }])
     expect(out.truncated).toBe(true)
   })
+
+  it('keeps first oversized unit instead of empty set', () => {
+    const units = [
+      { id: '1', text: 'x'.repeat(10) },
+      { id: '2', text: 'y' }
+    ]
+    const out = limitPageUnits(units, 100, 5)
+    expect(out.units).toHaveLength(1)
+    expect(out.units[0]).toEqual(units[0])
+    expect(out.truncated).toBe(true)
+  })
 })

@@ -35,7 +35,7 @@ export function batchTextUnits(
   return batches
 }
 
-/** 截断超大页 */
+/** 截断超大页（首条超限仍保留该条，与 batchTextUnits「超限单独成批」一致） */
 export function limitPageUnits(
   units: TextUnit[],
   maxNodes: number = PAGE_MAX_NODES,
@@ -48,6 +48,11 @@ export function limitPageUnits(
       return { units: limited, truncated: true }
     }
     if (chars + unit.text.length > maxChars) {
+      // 首条单独超限：仍纳入，避免空集
+      if (limited.length === 0) {
+        limited.push(unit)
+        return { units: limited, truncated: true }
+      }
       return { units: limited, truncated: limited.length < units.length }
     }
     limited.push(unit)

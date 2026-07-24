@@ -15,10 +15,13 @@ const saveBtn = document.getElementById('save') as HTMLButtonElement
 
 const desktopStatusEl = document.getElementById('desktop-status') as HTMLParagraphElement
 
+const FIXED_BASE_URL = 'https://api.deepseek.com'
+
 async function load(): Promise<void> {
   const s = await getExtensionSettings()
   providerEl.value = s.provider
-  baseUrlEl.value = s.deepseek.baseUrl
+  // v1 host_permissions 仅放行 api.deepseek.com，UI 锁定默认值
+  baseUrlEl.value = FIXED_BASE_URL
   apiKeyEl.value = s.deepseek.apiKey
   modelEl.value = s.deepseek.model
   pageModeEl.value = s.pageMode
@@ -48,7 +51,7 @@ saveBtn.addEventListener('click', async () => {
     await saveExtensionSettings({
       provider: providerEl.value as ExtensionProvider,
       deepseek: {
-        baseUrl: baseUrlEl.value.trim(),
+        baseUrl: FIXED_BASE_URL,
         apiKey: apiKeyEl.value,
         model: modelEl.value.trim()
       },

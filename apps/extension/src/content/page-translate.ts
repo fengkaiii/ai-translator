@@ -66,7 +66,8 @@ function clearTranslation(): void {
 function applyBilingual(node: Text, translated: string): void {
   const span = document.createElement('span')
   span.setAttribute('data-ai-translator', 'bilingual')
-  span.style.display = 'block'
+  // inline-block：避免在 inline 父节点上 display:block 撑破布局
+  span.style.display = 'inline-block'
   span.style.opacity = '0.85'
   span.style.marginTop = '0.15em'
   span.textContent = translated

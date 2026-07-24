@@ -61,7 +61,14 @@
 
     <label>
       DeepSeek Base URL
-      <input id="baseUrl" type="url" placeholder="https://api.deepseek.com" />
+      <input
+        id="baseUrl"
+        type="url"
+        value="https://api.deepseek.com"
+        disabled
+        readonly
+      />
+      <div class="hint">v1 仅允许 api.deepseek.com（与 host_permissions 一致）</div>
     </label>
     <label>
       DeepSeek API Key
