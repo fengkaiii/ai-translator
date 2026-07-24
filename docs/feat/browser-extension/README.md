@@ -10,6 +10,9 @@
 
 ## Commits
 
+- 2026-07-24 feat(extension): 整页双语与替换翻译
+- 2026-07-24 feat(extension): 页内划词翻译气泡
+- 2026-07-24 feat(extension): Options 配置与 DeepSeek 直连翻译
 - 2026-07-24 feat(extension): 搭建 Chromium MV3 扩展脚手架
 - 2026-07-24 feat(translate-core): 增加整页文本分块与上限逻辑
 - 2026-07-24 refactor(desktop): 迁入 apps/desktop 并改用 translate-core
