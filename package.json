@@ -1,6 +1,6 @@
 {
   "name": "ai-translator",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AI translator powered by DeepSeek",
   "main": "./out/main/index.js",
   "author": {
