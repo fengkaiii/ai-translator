@@ -37,10 +37,10 @@ export const PROVIDERS: ProviderDef[] = [
     id: 'cursor',
     name: 'Cursor',
     baseUrl: 'https://api.cursor.com',
-    defaultModel: 'default',
+    defaultModel: 'auto',
     apiKeyHint: 'crsr_…（Dashboard → API Keys）',
-    hint: '官方 Cloud Agents API。请先填 API Key 后点「刷新模型」拉取账号可用列表；需启用 Privacy Mode（非 Legacy）',
-    models: [{ id: 'default', label: '账号默认模型' }]
+    hint: '官方 @cursor/sdk 本地运行时（本机 agent 循环，模型仍走 Cursor 云端）。请填 API Key 后点「刷新模型」',
+    models: [{ id: 'auto', label: '账号自动选择（auto）' }]
   }
 ]
 
@@ -67,8 +67,8 @@ export function inferProvider(baseUrl: string, model: string): ProviderId {
 export function resolveModelForProvider(provider: ProviderId, model: string): string {
   const def = getProvider(provider)
   if (provider === 'cursor') {
-    // Cursor 模型来自账号动态列表；保留已选 id，空则用 default
-    if (!model) return def.defaultModel
+    // Cursor 模型来自账号动态列表；旧 default 迁到 auto
+    if (!model || model === 'default') return def.defaultModel
     return model
   }
   if (def.models.some((m) => m.id === model)) return model

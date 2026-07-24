@@ -7,7 +7,7 @@ DeepSeek 驱动的中英互译桌面应用（Electron + React + Vite）。
 ### 翻译
 
 - 中英互译，自动判断方向（中→英 / 英→中）
-- 对接 DeepSeek Chat Completions；Cursor 官方 Cloud Agents API（`/v1/agents`，无仓库 agent）
+- 对接 DeepSeek Chat Completions；Cursor 官方 `@cursor/sdk` 本地运行时
 - 厂商可切换；模型列表随厂商变化
 - **翻译**：根据原文生成译文
 - **润色**：在保留原意的前提下，把当前译文改得更通顺
@@ -30,7 +30,7 @@ DeepSeek 驱动的中英互译桌面应用（Electron + React + Vite）。
 ### 设置与界面
 
 - 厂商：DeepSeek / Cursor（切换自动带出默认配置与模型列表）
-- DeepSeek：`baseUrl` + API Key + 模型；Cursor：Dashboard API Key + Composer 模型（走 `/v1/agents`）
+- DeepSeek：`baseUrl` + API Key + 模型；Cursor：Dashboard API Key + `@cursor/sdk` 本地 Agent
 - 主题：浅色 / 深色 / 跟随系统（主界面与划词小窗均适配）
 - 划词开关、快捷键录制、划词应用范围（全部 / 已选中）
 - macOS 辅助功能授权引导（开发模式需添加 `Electron.app`）

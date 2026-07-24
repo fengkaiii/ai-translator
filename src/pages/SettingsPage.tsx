@@ -306,7 +306,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
           ) : null}
         </div>
         {form.provider === 'cursor' ? (
-          <p className="hint">模型以你账号 `GET /v1/models` 为准；选「账号默认」最稳妥。</p>
+          <p className="hint">模型以账号 `Cursor.models.list` 为准；选「auto」最稳妥。</p>
         ) : null}
       </div>
 
@@ -342,7 +342,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         />
         <p className="hint">
           {form.provider === 'cursor'
-            ? 'Cursor 使用官方 Cloud Agents API，地址固定。'
+            ? 'Cursor 使用本地 @cursor/sdk，地址仅作标识。'
             : '切换厂商会填入默认地址，仍可按需修改。'}
         </p>
       </div>

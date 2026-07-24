@@ -9,3 +9,7 @@
 - 初始版本: 1.0.3
 
 ## Commits
+
+- Electron 升级到 39.8.0（Node 22.22），满足 `@cursor/sdk` engines
+- Cursor 翻译从 Cloud Agents REST 改为本地 `Agent.prompt` + `Cursor.models.list`
+- 打包 `asarUnpack` 包含 `@cursor/sdk` 原生二进制
