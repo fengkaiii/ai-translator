@@ -76,7 +76,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 **Draft Release**。到 [Releases](https://github.com/fengkaiii/ai-translator/releases) 检查产物，确认后点 Publish。
+推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
+
+打开对应版本页即可下载安装包（`.dmg` / `.exe` / `.deb`）。若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
 
 ### 本地发布（当前平台）
 

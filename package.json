@@ -44,7 +44,7 @@
       "provider": "github",
       "owner": "fengkaiii",
       "repo": "ai-translator",
-      "releaseType": "draft"
+      "releaseType": "release"
     },
     "directories": {
       "output": "release"
