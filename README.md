@@ -88,9 +88,14 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
+推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包桌面端，并在 Ubuntu 上额外构建浏览器扩展 zip，一并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
 
-打开对应版本页即可下载安装包（`.dmg` / `.exe` / `.deb`）。若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
+打开对应版本页即可下载：
+
+- 桌面：`.dmg` / `.exe` / `.deb`
+- 扩展：`ai-translator-extension-<版本>.zip`（解压后 Chrome / Edge → 加载已解压的扩展程序）
+
+若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
 
 ### 安装与打开（macOS）
 

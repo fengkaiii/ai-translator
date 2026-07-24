@@ -9,6 +9,7 @@
 - 初始版本: 1.1.1
 
 ## Commits
+- 2026-07-24 ci(release): Release 增加浏览器扩展 zip 上传
 - 2026-07-24 feat(extension): 整页批并发加速、面板模式切换与划词图标开窗
 - 2026-07-24 fix(browser-extension): 修复 Native Host 无 node 与整页内容脚本未注入
 - 2026-07-24 fix(browser-extension): 修复分块空集与 Options baseUrl 误导

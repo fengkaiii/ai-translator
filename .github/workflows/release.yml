@@ -21,6 +21,8 @@ jobs:
             args: --win
           - os: ubuntu-latest
             args: --linux
+            # 仅 Linux 跑扩展 zip，避免三端各传一份
+            pack_extension: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +50,8 @@ jobs:
             libxkbcommon-x11-dev \
             libxkbfile-dev \
             libx11-xcb-dev \
-            libxcb1-dev
+            libxcb1-dev \
+            zip
 
       - uses: actions/setup-node@v4
         with:
@@ -58,8 +61,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish
+      - name: Build and publish desktop
         run: npm run build -w ai-translator-desktop && npx --workspace=ai-translator-desktop electron-builder ${{ matrix.args }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_python: python
+
+      # 浏览器扩展：打 zip 并挂到同一次 GitHub Release（仅 Ubuntu）
+      - name: Build and upload browser extension
+        if: matrix.pack_extension
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm run build:extension
+          test -f apps/extension/dist/manifest.json
+          VER="${GITHUB_REF_NAME#v}"
+          OUT="release/ai-translator-extension-${VER}.zip"
+          mkdir -p release
+          rm -f "$OUT"
+          # zip 根目录即扩展内容，解压后可直接 Load unpacked
+          (cd apps/extension/dist && zip -r -q "../../../${OUT}" .)
+          ls -la "$OUT"
+          # 桌面包已由 electron-builder 创建 Release；再追加扩展资产
+          gh release upload "$GITHUB_REF_NAME" "$OUT" --clobber
