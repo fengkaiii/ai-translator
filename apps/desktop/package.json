@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "description": "AI translator desktop (Electron)",
   "private": true,
+  "homepage": "https://github.com/fengkaiii/ai-translator",
   "main": "./out/main/index.js",
   "author": {
     "name": "fengkaiii",
