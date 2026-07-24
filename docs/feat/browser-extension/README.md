@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-24 feat(translate-core): 增加整页文本分块与上限逻辑
 - 2026-07-24 refactor(desktop): 迁入 apps/desktop 并改用 translate-core
 - 2026-07-24 feat(translate-core): 抽出 DeepSeek client 与 prompts
 - 2026-07-24 chore(monorepo): 初始化 workspaces 与 translate-core 骨架
