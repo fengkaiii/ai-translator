@@ -16,13 +16,22 @@ jobs:
         include:
           - os: macos-latest
             args: --mac
-          - os: windows-latest
+          # windows-latest → VS2026；当前 node-gyp / @electron/rebuild 认不出，先钉在 2022
+          - os: windows-2022
             args: --win
           - os: ubuntu-latest
             args: --linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      # node-gyp (uiohook-napi) needs distutils; Python 3.12+ removed it
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install setuptools for node-gyp
+        run: python -m pip install setuptools
 
       - uses: actions/setup-node@v4
         with:
@@ -36,3 +45,4 @@ jobs:
         run: npm run build && npx electron-builder ${{ matrix.args }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_python: python
