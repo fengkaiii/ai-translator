@@ -1,0 +1,88 @@
+{
+  "name": "ai-translator-desktop",
+  "version": "1.1.1",
+  "description": "AI translator desktop (Electron)",
+  "private": true,
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "fengkaiii",
+    "email": "fengkaiii@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "release": "npm run build && electron-builder --publish always"
+  },
+  "dependencies": {
+    "@ai-translator/translate-core": "*",
+    "@cursor/sdk": "^1.0.24",
+    "electron-store": "^8.2.0",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^39.8.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.translater.ai",
+    "productName": "AI Translator",
+    "publish": {
+      "provider": "github",
+      "owner": "fengkaiii",
+      "repo": "ai-translator",
+      "releaseType": "release"
+    },
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "node_modules/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "resources/icon-128.png",
+        "to": "icon-128.png"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/uiohook-napi/**",
+      "**/node_modules/@cursor/sdk*/**",
+      "**/node_modules/@cursor/sdk-*/**"
+    ],
+    "mac": {
+      "target": ["dmg"],
+      "icon": "resources/icon.png",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "resources/icon.png"
+    },
+    "linux": {
+      "target": ["deb"],
+      "icon": "resources/icon.png",
+      "category": "Utility",
+      "maintainer": "fengkaiii <fengkaiii@users.noreply.github.com>"
+    }
+  }
+}

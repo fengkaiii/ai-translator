@@ -44,8 +44,10 @@ DeepSeek 驱动的中英互译桌面应用（Electron + React + Vite）。
 
 ```bash
 npm install
-npm run dev
+npm run dev   # apps/desktop（Electron）
 ```
+
+Monorepo：`apps/desktop`（桌面端）、`apps/extension`（浏览器扩展）、`packages/translate-core`（共享翻译逻辑）。
 
 首次使用划词翻译时，macOS 需在 **系统设置 → 隐私与安全性 → 辅助功能** 中授权。
 

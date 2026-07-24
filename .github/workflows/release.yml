@@ -59,7 +59,7 @@ jobs:
         run: npm ci
 
       - name: Build and publish
-        run: npm run build && npx electron-builder ${{ matrix.args }} --publish always
+        run: npm run build -w ai-translator-desktop && npx --workspace=ai-translator-desktop electron-builder ${{ matrix.args }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_python: python
