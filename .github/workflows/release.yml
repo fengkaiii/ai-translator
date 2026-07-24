@@ -40,9 +40,13 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             libx11-dev \
+            libxrandr-dev \
             libxtst-dev \
+            libxt-dev \
+            libxinerama-dev \
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
+            libxkbfile-dev \
             libx11-xcb-dev \
             libxcb1-dev
 
