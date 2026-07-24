@@ -2,9 +2,14 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+// 共享包是 TS 源码，需打进 bundle，不能当 node 外部依赖
+const bundleWorkspace = externalizeDepsPlugin({
+  exclude: ['@ai-translator/translate-core']
+})
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [bundleWorkspace],
     build: {
       rollupOptions: {
         input: {
@@ -14,7 +19,7 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [bundleWorkspace],
     build: {
       rollupOptions: {
         input: {

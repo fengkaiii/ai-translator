@@ -1,0 +1,7 @@
+{
+  "name": "com.aitranslator.native",
+  "description": "AI Translator native host for Cursor proxy",
+  "path": "PLACEHOLDER_ABSOLUTE_PATH_TO_run-host.sh_OR_host.mjs",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://facimohbibpamgdkbigdabhomohndbla/"]
+}

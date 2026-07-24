@@ -44,8 +44,18 @@ DeepSeek 驱动的中英互译桌面应用（Electron + React + Vite）。
 
 ```bash
 npm install
-npm run dev
+npm run dev                 # 桌面端 Electron
+npm run build:extension     # 浏览器扩展 → apps/extension/dist
+npm test                    # translate-core 单测
 ```
+
+Monorepo：
+
+- `apps/desktop` — Electron 桌面端（系统划词 / Cursor SDK）
+- `apps/extension` — Chromium MV3（页内划词 + 整页翻译；DeepSeek 直连，Cursor 走桌面代理）
+- `packages/translate-core` — 共享类型、prompt、DeepSeek client、整页分块
+
+扩展加载：Chrome → 扩展程序 → 加载已解压的扩展程序 → 选 `apps/extension/dist`。用 Cursor 前先 `npm run dev` 启动桌面端。
 
 首次使用划词翻译时，macOS 需在 **系统设置 → 隐私与安全性 → 辅助功能** 中授权。
 
@@ -78,9 +88,14 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包，并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
+推送 `v*` tag 后，`.github/workflows/release.yml` 会分别在 macOS / Windows / Linux 打包桌面端，并在 Ubuntu 上额外构建浏览器扩展 zip，一并上传到 [Releases](https://github.com/fengkaiii/ai-translator/releases)。
 
-打开对应版本页即可下载安装包（`.dmg` / `.exe` / `.deb`）。若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
+打开对应版本页即可下载：
+
+- 桌面：`.dmg` / `.exe` / `.deb`
+- 扩展：`ai-translator-extension-<版本>.zip`（解压后 Chrome / Edge → 加载已解压的扩展程序）
+
+若页面上没有任何 Assets，说明上传被跳过（常见原因：该 tag 已有一个空的已发布 Release，与草稿类型冲突）——删掉该 Release 后重新推 tag 即可。
 
 ### 安装与打开（macOS）
 

@@ -6,3 +6,5 @@ dist
 *.log
 .env
 .env.*
+apps/extension/dist
+.ai-translator
