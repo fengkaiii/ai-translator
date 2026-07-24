@@ -59,7 +59,7 @@ export default function TranslatePage({ pendingText, onPendingConsumed }: Props)
             if (!loading && input.trim()) void run('translate')
           }
         }}
-        rows={6}
+        rows={8}
       />
 
       <div className="actions">
@@ -90,7 +90,7 @@ export default function TranslatePage({ pendingText, onPendingConsumed }: Props)
         readOnly
         value={result}
         placeholder="翻译结果会显示在这里"
-        rows={6}
+        rows={8}
       />
     </div>
   )

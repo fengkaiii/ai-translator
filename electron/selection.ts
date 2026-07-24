@@ -8,8 +8,9 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { getSettings } from './settings'
-import { getSelectedText, getFrontmostAppName, isAppExcluded } from './selection-text'
-import { callDeepSeek, type TargetLang } from './deepseek'
+import { getSelectedText, getFrontmostAppName, shouldSkipSelection } from './selection-text'
+import { translateText } from './translate'
+import type { TargetLang } from './deepseek'
 import { requestAccessibility } from './accessibility'
 import { getLogoDataUrl } from './logo'
 
@@ -452,7 +453,7 @@ async function openPopupWithTranslation(
   showPopup()
 
   try {
-    const result = await callDeepSeek(getSettings(), {
+    const result = await translateText(getSettings(), {
       text: source,
       mode: 'translate',
       targetLang
@@ -478,7 +479,7 @@ async function polishPopupTranslation(): Promise<void> {
   if (!popupWin || popupWin.isDestroyed()) return
   loadPopupContent(popupTranslation, '润色中…')
   try {
-    const result = await callDeepSeek(getSettings(), {
+    const result = await translateText(getSettings(), {
       text: popupSource,
       mode: 'polish',
       previousTranslation: popupTranslation,
@@ -594,7 +595,8 @@ async function finalizeSelection(
   try {
     const front = await getFrontmostAppName()
     if (seq !== selectionSeq) return
-    if (isAppExcluded(front, getSettings().excludedApps)) {
+    const s = getSettings()
+    if (shouldSkipSelection(front, s.selectionAppMode, s.excludedApps)) {
       hideIcon()
       return
     }

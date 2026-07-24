@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { getSettings, saveSettings } from './settings'
-import { callDeepSeek } from './deepseek'
+import { translateText } from './translate'
 import type { TranslateRequest } from './deepseek'
 import { registerHotkey, unregisterHotkey } from './hotkey'
 import {
@@ -25,7 +25,7 @@ function createWindow(): void {
   const icon = getAppNativeImage()
   mainWindow = new BrowserWindow({
     width: 600,
-    height: 780,
+    height: 700,
     minWidth: 400,
     minHeight: 560,
     title: 'AI Translator',
@@ -85,9 +85,22 @@ function setupIpc(): void {
     return next
   })
   ipcMain.handle('translate', async (_e, req: TranslateRequest) => {
-    const text = await callDeepSeek(getSettings(), req)
+    const text = await translateText(getSettings(), req)
     return { text }
   })
+  ipcMain.handle(
+    'models:list',
+    async (_e, opts?: { apiKey?: string; provider?: 'deepseek' | 'cursor' }) => {
+      const s = getSettings()
+      const provider = opts?.provider ?? s.provider
+      if (provider !== 'cursor') {
+        const { getProvider } = await import('../src/lib/providers')
+        return getProvider(provider).models.map((m) => ({ id: m.id, label: m.label }))
+      }
+      const { listCursorModels } = await import('./cursor')
+      return listCursorModels((opts?.apiKey ?? s.apiKey).trim())
+    }
+  )
   ipcMain.handle('accessibility:status', () => getAccessibilityStatus())
   ipcMain.handle('accessibility:request', () => requestAccessibility())
   ipcMain.handle('accessibility:reveal', () => revealElectronApp())

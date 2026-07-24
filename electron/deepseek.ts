@@ -79,7 +79,7 @@ export async function callDeepSeek(
         Authorization: `Bearer ${settings.apiKey}`
       },
       body: JSON.stringify({
-        model: settings.model || 'deepseek-chat',
+        model: settings.model || 'deepseek-v4-flash',
         messages: [
           {
             role: 'system',

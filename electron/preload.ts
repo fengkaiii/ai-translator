@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('translator', {
   getFrontmostAppName: (): Promise<string> => ipcRenderer.invoke('app:frontmost'),
   listApps: (mode: 'running' | 'all' = 'all'): Promise<string[]> =>
     ipcRenderer.invoke('app:list', mode),
+  listModels: (opts?: {
+    apiKey?: string
+    provider?: 'deepseek' | 'cursor'
+  }): Promise<Array<{ id: string; label: string }>> => ipcRenderer.invoke('models:list', opts),
   onFillAndTranslate: (callback: (text: string) => void): (() => void) => {
     const listener = (_: Electron.IpcRendererEvent, text: string): void => {
       callback(text)

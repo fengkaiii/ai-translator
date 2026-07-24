@@ -159,21 +159,46 @@ export async function listRunningAppNames(): Promise<string[]> {
 
 export type ExcludedAppLike = { name: string; enabled: boolean } | string
 
-/** 是否应跳过划词（仅 enabled 的排除项 + 本应用自身） */
-export function isAppExcluded(appName: string, excludedApps: ExcludedAppLike[]): boolean {
+export type SelectionAppModeLike = 'all' | 'selected'
+
+function appNameMatches(appName: string, entryName: string): boolean {
+  const lower = appName.trim().toLowerCase()
+  const e = entryName.trim().toLowerCase()
+  if (!lower || !e) return false
+  return lower === e || lower.includes(e) || e.includes(lower)
+}
+
+function isSelfApp(appName: string): boolean {
+  const lower = appName.trim().toLowerCase()
+  return lower === 'electron' || lower === 'ai translator'
+}
+
+/** 应用是否在白名单中（列表内即生效） */
+export function isAppAllowlisted(appName: string, apps: ExcludedAppLike[]): boolean {
+  const name = appName.trim()
+  if (!name || isSelfApp(name)) return false
+  return apps.some((item) => {
+    const entryName = typeof item === 'string' ? item : item.name
+    return appNameMatches(name, entryName)
+  })
+}
+
+/**
+ * 是否应跳过划词。
+ * - 始终跳过本应用
+ * - all：其它应用都允许
+ * - selected：仅白名单中的应用允许
+ */
+export function shouldSkipSelection(
+  appName: string,
+  mode: SelectionAppModeLike,
+  apps: ExcludedAppLike[]
+): boolean {
   const name = appName.trim()
   if (!name) return false
-  const lower = name.toLowerCase()
-  if (lower === 'electron' || lower === 'ai translator') return true
-
-  return excludedApps.some((item) => {
-    const entryName = typeof item === 'string' ? item : item.name
-    const enabled = typeof item === 'string' ? true : item.enabled
-    if (!enabled) return false
-    const e = entryName.trim().toLowerCase()
-    if (!e) return false
-    return lower === e || lower.includes(e) || e.includes(lower)
-  })
+  if (isSelfApp(name)) return true
+  if (mode !== 'selected') return false
+  return !isAppAllowlisted(name, apps)
 }
 
 /**

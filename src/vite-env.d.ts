@@ -2,16 +2,23 @@
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 
+export type ProviderId = 'deepseek' | 'cursor'
+
+export type SelectionAppMode = 'all' | 'selected'
+
 export type ExcludedAppEntry = {
   name: string
   enabled: boolean
 }
 
 export type AppSettings = {
+  provider: ProviderId
   baseUrl: string
   apiKey: string
   model: string
+  providerApiKeys: Partial<Record<ProviderId, string>>
   selectionEnabled: boolean
+  selectionAppMode: SelectionAppMode
   hotkey: string
   theme: ThemeMode
   excludedApps: ExcludedAppEntry[]
@@ -45,6 +52,10 @@ export type TranslatorApi = {
   revealElectronApp: () => Promise<{ ok: boolean; path: string | null }>
   getFrontmostAppName: () => Promise<string>
   listApps: (mode?: 'running' | 'all') => Promise<string[]>
+  listModels: (opts?: {
+    apiKey?: string
+    provider?: 'deepseek' | 'cursor'
+  }) => Promise<Array<{ id: string; label: string }>>
   onFillAndTranslate: (callback: (text: string) => void) => () => void
   onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
 }
