@@ -55,7 +55,8 @@
       "package.json",
       "node_modules/**/*",
       "resources/**/*",
-      "!**/node_modules/@ai-translator/translate-core{,/**/*}"
+      "!**/node_modules/@ai-translator/translate-core",
+      "!**/node_modules/@ai-translator/translate-core/**"
     ],
     "extraResources": [
       {
