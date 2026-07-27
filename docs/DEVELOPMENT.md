@@ -43,7 +43,7 @@ macOS 期望文件名示例：
 - `AI Translator-<version>-arm64.dmg`
 - `AI Translator-<version>-x64.dmg`
 
-`apps/desktop` 的 `build.npmRebuild` 为 `false`，依赖预编译原生二进制；`@cursor/sdk` 的平台 optional 包需在目标架构齐全（CI 会在 mac job 用 `npm install --force @cursor/sdk-darwin-x64` 交叉拉取，避免 arm64 runner 上的 EBADPLATFORM）。
+`apps/desktop` 的 `build.npmRebuild` 为 `false`，依赖预编译原生二进制；`@cursor/sdk` 的平台 optional 包需在目标架构齐全（CI 会在 mac job 用 `npm install --force @cursor/sdk-darwin-x64` 交叉拉取，避免 arm64 runner 上的 EBADPLATFORM）。Release workflow 的 `npm ci` 强制使用 `registry.npmjs.org`（避免 lockfile / 本机镜像指向 npmmirror 时在 GitHub runner 上超时）。
 
 ## GitHub Actions 发布
 
