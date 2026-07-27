@@ -19,7 +19,8 @@ const empty: AppSettings = {
   selectionAppMode: 'all',
   hotkey: 'Command+Shift+T',
   theme: 'system',
-  excludedApps: []
+  excludedApps: [],
+  blacklistedApps: []
 }
 
 type Props = {
@@ -46,7 +47,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         provider: s.provider ?? 'deepseek',
         providerApiKeys: s.providerApiKeys ?? {},
         selectionAppMode: s.selectionAppMode ?? 'all',
-        excludedApps: s.excludedApps ?? []
+        excludedApps: s.excludedApps ?? [],
+        blacklistedApps: s.blacklistedApps ?? []
       })
       onThemeChange(s.theme)
       if (s.provider === 'cursor' && s.apiKey.trim()) {
@@ -132,7 +134,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         provider: next.provider ?? 'deepseek',
         providerApiKeys: next.providerApiKeys ?? {},
         selectionAppMode: next.selectionAppMode ?? 'all',
-        excludedApps: next.excludedApps ?? []
+        excludedApps: next.excludedApps ?? [],
+        blacklistedApps: next.blacklistedApps ?? []
       })
       onThemeChange(next.theme)
       setSaved(true)
