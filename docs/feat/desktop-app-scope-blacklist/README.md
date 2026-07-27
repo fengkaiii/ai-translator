@@ -10,5 +10,6 @@
 
 ## Commits
 
+- 2026-07-27 docs(plan): 划词黑名单与小窗贴底实现计划
 - 2026-07-27 docs(spec): 写入划词应用范围黑名单与小窗贴底设计
 - 2026-07-27 chore(branch): 初始化分支 feat/desktop-app-scope-blacklist（v2.0.8）
