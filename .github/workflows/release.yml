@@ -61,10 +61,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # arm64 runner 上 npm 通常只装 host optional；Intel 包需要 darwin-x64 预编译
+      # arm64 runner 默认拒装 x64 optional（EBADPLATFORM）；--force 才能交叉拉取
       - name: Ensure Cursor SDK darwin-x64 optional
         if: runner.os == 'macOS'
-        run: npm install --no-save --no-package-lock @cursor/sdk-darwin-x64@1.0.24
+        run: |
+          npm install --no-save --no-package-lock --force @cursor/sdk-darwin-x64@1.0.24
+          test -d node_modules/@cursor/sdk-darwin-x64
 
       - name: Ensure app-builder binaries executable
         shell: bash

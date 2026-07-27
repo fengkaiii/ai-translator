@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Translator",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "网页划词与整页翻译（DeepSeek / Cursor via desktop）",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxl2lAStdJ5vR0qWrGNBuPdO40IozAcyojM7IKpSxGSXlWHurtpOLV6/rpzzF0Nzi+D7CkqtlX4DfXiyOszF/XwaV1kb/9clyvlseFQYt6TdS6/2d2AnskctUPXgYf4Yuw/OJKzlj/ENUZoIHZHhyWTy18zZb8NwVDAS2rwKXz8IOaQ3GuMvgr79RVW0P3GwUDNgb9FyKIOYtchyT5LdzM4a7aXuUR2XU5J5c6cglIVigMk9j7o3kO7rYYF/dBi+rZKUN0+bLOnsz67rQfOXLPkFkLg7JP4hA3kGyT18usgM8pzWkEhYz6GfqibWasrTO5aqAEYhpbU6A4Fns3vHnNwIDAQAB",
   "action": {

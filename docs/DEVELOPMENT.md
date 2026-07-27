@@ -43,7 +43,7 @@ macOS 期望文件名示例：
 - `AI Translator-<version>-arm64.dmg`
 - `AI Translator-<version>-x64.dmg`
 
-`apps/desktop` 的 `build.npmRebuild` 为 `false`，依赖预编译原生二进制；`@cursor/sdk` 的平台 optional 包需在目标架构齐全（CI 会在 mac job 显式安装 `@cursor/sdk-darwin-x64`）。
+`apps/desktop` 的 `build.npmRebuild` 为 `false`，依赖预编译原生二进制；`@cursor/sdk` 的平台 optional 包需在目标架构齐全（CI 会在 mac job 用 `npm install --force @cursor/sdk-darwin-x64` 交叉拉取，避免 arm64 runner 上的 EBADPLATFORM）。
 
 ## GitHub Actions 发布
 
