@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-27 feat(Settings): 划词范围支持指定应用文案与全部应用黑名单
 - 2026-07-27 fix(selection): 划词入口传入黑名单列表
 - 2026-07-27 feat(settings): 增加划词黑名单字段 blacklistedApps
 - 2026-07-27 feat(selection): 全部应用模式支持黑名单判定
