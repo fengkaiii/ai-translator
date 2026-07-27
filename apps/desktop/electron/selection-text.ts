@@ -186,19 +186,21 @@ export function isAppAllowlisted(appName: string, apps: ExcludedAppLike[]): bool
 /**
  * 是否应跳过划词。
  * - 始终跳过本应用
- * - all：其它应用都允许
- * - selected：仅白名单中的应用允许
+ * - all：命中黑名单则跳过；名单空则允许
+ * - selected：仅白名单中的应用允许（忽略黑名单）
  */
 export function shouldSkipSelection(
   appName: string,
   mode: SelectionAppModeLike,
-  apps: ExcludedAppLike[]
+  allowlist: ExcludedAppLike[],
+  blacklist: ExcludedAppLike[] = []
 ): boolean {
   const name = appName.trim()
   if (!name) return false
   if (isSelfApp(name)) return true
-  if (mode !== 'selected') return false
-  return !isAppAllowlisted(name, apps)
+  if (mode === 'selected') return !isAppAllowlisted(name, allowlist)
+  // all：黑名单命中则跳过
+  return isAppAllowlisted(name, blacklist)
 }
 
 /**
