@@ -14,8 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # 交叉编译 arm64+x64；若原生依赖失败，回退为：
+          # - macos-latest + --mac --arm64
+          # - macos-13 + --mac --x64
           - os: macos-latest
-            args: --mac
+            args: --mac --x64 --arm64
           # windows-latest → VS2026；当前 node-gyp / @electron/rebuild 认不出，先钉在 2022
           - os: windows-2022
             args: --win
@@ -57,6 +60,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # arm64 runner 上 npm 通常只装 host optional；Intel 包需要 darwin-x64 预编译
+      - name: Ensure Cursor SDK darwin-x64 optional
+        if: runner.os == 'macOS'
+        run: npm install --no-save --no-package-lock @cursor/sdk-darwin-x64@1.0.24
 
       - name: Ensure app-builder binaries executable
         shell: bash

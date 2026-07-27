@@ -1,6 +1,6 @@
 {
   "name": "ai-translator-desktop",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "AI translator desktop (Electron)",
   "private": true,
   "homepage": "https://github.com/fengkaiii/ai-translator",
@@ -14,7 +14,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build && electron-builder --mac --x64 --arm64",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
     "release": "npm run build && electron-builder --publish never"
@@ -81,7 +81,10 @@
     ],
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
       ],
       "icon": "resources/icon.png",
       "category": "public.app-category.productivity"
