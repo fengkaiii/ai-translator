@@ -27,6 +27,10 @@ let shadow: ShadowRoot | null = null
 let iconClickEnabledAt = 0
 /** 关闭后短暂忽略 mouseup，避免选区仍在时立刻又弹出图标 */
 let suppressShowUntil = 0
+/** 面板是否置顶：失焦不关闭，可继续划词后点图标复用当前窗 */
+let panelPinned = false
+/** 置顶面板打开时，新划词暂存在图标侧，点图标后再写入面板 */
+let iconDraft: { text: string; anchor: { top: number; left: number } } | null = null
 /** 面板拖动中：避免 render 把位置重置，并忽略拖动手势触发的外部 mousedown 关闭 */
 let panelDragging = false
 let dragOffsetX = 0
@@ -125,6 +129,13 @@ function ensureHost(): ShadowRoot {
         font-size: 12px;
         font-weight: 500;
         min-width: 0;
+        flex: 1;
+      }
+      .status-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
       }
       .link {
         border: 0;
@@ -139,6 +150,31 @@ function ensureHost(): ShadowRoot {
       }
       .link:hover { opacity: .8; text-decoration: underline; }
       .link:disabled { opacity: .45; cursor: not-allowed; text-decoration: none; }
+      .pin-btn {
+        border: 0;
+        background: transparent;
+        padding: 2px;
+        margin: 0;
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #667085;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .pin-btn:hover { background: rgba(0,0,0,.06); color: #141822; }
+      .pin-btn[aria-pressed='true'] {
+        color: #006890;
+        background: rgba(0, 104, 144, 0.12);
+      }
+      .pin-btn svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+        pointer-events: none;
+      }
       .text {
         white-space: pre-wrap;
         word-break: break-word;
@@ -196,6 +232,12 @@ function ensureHost(): ShadowRoot {
         }
         .status { color: #8b93a7; }
         .link { color: #4d8dff; }
+        .pin-btn { color: #8b93a7; }
+        .pin-btn:hover { background: rgba(255,255,255,.08); color: #f0f3f8; }
+        .pin-btn[aria-pressed='true'] {
+          color: #5ec4e8;
+          background: rgba(0, 104, 144, 0.28);
+        }
         .text.err { color: #f88; }
         .btn.primary {
           color: #e8eef5;
@@ -217,7 +259,15 @@ function ensureHost(): ShadowRoot {
     <div class="panel" hidden>
       <div class="status-row">
         <div class="status"></div>
-        <button type="button" class="link" data-act="swap" hidden>→中文</button>
+        <div class="status-actions">
+          <button type="button" class="link" data-act="swap" hidden>→中文</button>
+          <button type="button" class="pin-btn" data-act="pin" title="置顶" aria-label="置顶" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 17v5" />
+              <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="text"></div>
       <div class="actions">
@@ -254,7 +304,7 @@ function ensureHost(): ShadowRoot {
     e.stopPropagation()
     // 松手选区后的残留 click 会落在刚出现的图标上，需忽略
     if (Date.now() < iconClickEnabledAt) return
-    void openPanelAndTranslate()
+    void onIconClick()
   })
 
   const panel = shadow.querySelector('.panel') as HTMLElement
@@ -317,12 +367,20 @@ function onPanelDragEnd(e: MouseEvent): void {
   e.stopPropagation()
 }
 
+function hideIconOnly(): void {
+  iconDraft = null
+  if (!shadow) return
+  ;(shadow.querySelector('.icon-btn') as HTMLElement).hidden = true
+}
+
 function hideAll(): void {
   if (panelDragging) {
     panelDragging = false
     document.removeEventListener('mousemove', onPanelDragMove, true)
     document.removeEventListener('mouseup', onPanelDragEnd, true)
   }
+  panelPinned = false
+  iconDraft = null
   state = null
   suppressShowUntil = Date.now() + 300
   if (!shadow) return
@@ -339,16 +397,30 @@ function placeFixed(el: HTMLElement, top: number, left: number, widthHint: numbe
   el.style.left = `${l}px`
 }
 
-function showIcon(): void {
-  if (!state) return
+/** 仅展示划词图标；keepPanel 时不关已打开的置顶面板 */
+function showIcon(opts?: { keepPanel?: boolean }): void {
+  const draft = iconDraft
+  if (!draft && !state) return
   const root = ensureHost()
   const icon = root.querySelector('.icon-btn') as HTMLElement
   const panel = root.querySelector('.panel') as HTMLElement
-  panel.hidden = true
-  state.phase = 'icon'
-  placeFixed(icon, state.anchor.top, state.anchor.left, ICON_SIZE)
+  const anchor = draft?.anchor ?? state!.anchor
+
+  if (!opts?.keepPanel) {
+    panel.hidden = true
+    if (state) state.phase = 'icon'
+  }
+
+  placeFixed(icon, anchor.top, anchor.left, ICON_SIZE)
   iconClickEnabledAt = Date.now() + ICON_CLICK_GUARD_MS
   icon.hidden = false
+}
+
+function syncPinButton(root: ShadowRoot): void {
+  const pin = root.querySelector('[data-act="pin"]') as HTMLButtonElement
+  pin.setAttribute('aria-pressed', panelPinned ? 'true' : 'false')
+  pin.title = panelPinned ? '取消置顶' : '置顶'
+  pin.setAttribute('aria-label', pin.title)
 }
 
 function renderPanel(): void {
@@ -362,6 +434,7 @@ function renderPanel(): void {
   const copy = root.querySelector('[data-act="copy"]') as HTMLButtonElement
 
   status.textContent = state.status
+  syncPinButton(root)
 
   const hasResult = Boolean(state.result)
   if (hasResult) {
@@ -421,6 +494,7 @@ async function openPanelAndTranslate(): Promise<void> {
   if (!state || state.phase === 'panel') return
   const root = ensureHost()
   ;(root.querySelector('.icon-btn') as HTMLElement).hidden = true
+  iconDraft = null
   state.phase = 'panel'
   state.result = ''
   state.error = ''
@@ -437,6 +511,37 @@ async function openPanelAndTranslate(): Promise<void> {
   }
   renderPanel()
   await runTranslate()
+}
+
+/** 置顶面板已开：用新划词复用当前窗口（位置/置顶状态不变） */
+async function reusePanelWithDraft(): Promise<void> {
+  if (!state || state.phase !== 'panel' || !iconDraft) return
+  const text = iconDraft.text
+  hideIconOnly()
+  suppressShowUntil = Date.now() + 300
+  state.text = text
+  state.result = ''
+  state.error = ''
+  state.targetLang = undefined
+  state.loading = true
+  state.status = '翻译中…'
+  try {
+    const settings = await getExtensionSettings()
+    if (state) state.targetLang = settings.targetLang
+  } catch {
+    /* ignore */
+  }
+  renderPanel()
+  await runTranslate()
+}
+
+async function onIconClick(): Promise<void> {
+  // 置顶小窗仍在：点划词图标复用当前面板
+  if (state?.phase === 'panel' && panelPinned && iconDraft) {
+    await reusePanelWithDraft()
+    return
+  }
+  await openPanelAndTranslate()
 }
 
 function resolveLanguageSwap(
@@ -458,6 +563,11 @@ async function onPanelClick(ev: Event): Promise<void> {
   const act = btn.dataset.act
   if (act === 'close') {
     hideAll()
+    return
+  }
+  if (act === 'pin') {
+    panelPinned = !panelPinned
+    syncPinButton(ensureHost())
     return
   }
   if (act === 'copy') {
@@ -525,11 +635,34 @@ function selectionAnchor(): { top: number; left: number } | null {
 
 function onMouseUp(): void {
   if (Date.now() < suppressShowUntil) return
-  // 面板打开期间不再因选区变化弹图标
-  if (state?.phase === 'panel') return
 
   const sel = window.getSelection()
   const text = sel?.toString().trim() ?? ''
+
+  // 置顶面板打开：允许继续划词出图标，点图标复用当前窗
+  if (state?.phase === 'panel') {
+    if (!panelPinned) return
+    if (!text) {
+      hideIconOnly()
+      return
+    }
+    const anchor = selectionAnchor()
+    if (!anchor) return
+    if (iconDraft?.text === text) {
+      placeFixed(
+        ensureHost().querySelector('.icon-btn') as HTMLElement,
+        anchor.top,
+        anchor.left,
+        ICON_SIZE
+      )
+      iconDraft.anchor = anchor
+      return
+    }
+    iconDraft = { text, anchor }
+    showIcon({ keepPanel: true })
+    return
+  }
+
   if (!text) {
     if (state?.phase === 'icon') hideAll()
     return
@@ -550,6 +683,7 @@ function onMouseUp(): void {
     return
   }
 
+  iconDraft = null
   state = {
     text,
     result: '',
@@ -572,6 +706,8 @@ function onDocMouseDown(e: MouseEvent): void {
   if (panelDragging) return
   const path = e.composedPath()
   if (path.includes(host)) return
+  // 置顶：失焦 / 点页面其它处不关闭
+  if (panelPinned && state.phase === 'panel') return
   hideAll()
 }
 

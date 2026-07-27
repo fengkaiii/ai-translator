@@ -10,4 +10,5 @@
 
 ## Commits
 
+- 2026-07-27 feat(selection): 划词小窗支持置顶与复用当前窗口
 - 2026-07-27 chore(branch): 初始化分支 feat/selection-panel-pin（v2.0.10）
