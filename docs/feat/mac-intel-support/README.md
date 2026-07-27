@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-27 docs(readme): 拆分使用手册与开发发布文档
 - 2026-07-27 ci(release): mac 单 job 交叉编译 arm64 与 x64 DMG
 - 2026-07-27 feat(desktop): mac 打包同时产出 arm64 与 x64 DMG
 - 2026-07-27 docs(plan): 补充 Mac Intel 双 DMG 与文档拆分实现计划
