@@ -10,9 +10,17 @@ import {
 import { requestTranslate } from '../lib/translate-client'
 import {
   getExtensionSettings,
+  saveExtensionSettings,
   type PageMode,
   type TranslateScope
 } from '../lib/settings'
+import {
+  mountFloatingButton,
+  setFloatingPageMode,
+  setFloatingProgress,
+  setFloatingTranslateScope,
+  unmountFloatingButton
+} from './floating-button'
 
 const SKIP_SELECTOR =
   'script,style,noscript,code,pre,textarea,input,select,[contenteditable],[data-ai-translator],[data-ai-translator-original]'
@@ -45,6 +53,45 @@ let bandPending = false
 let scrollRaf = 0
 /** 有未消化的滚动/续跑信号时唤醒后台循环 */
 let prefetchWaiters: Array<() => void> = []
+
+/** 浮动按钮进度：本波 done/total */
+let progressDone = 0
+let progressTotal = 0
+let progressActive = false
+
+function reportProgress(partial?: { done?: number; total?: number; message?: string }): void {
+  if (partial?.total != null) progressTotal = partial.total
+  if (partial?.done != null) progressDone = partial.done
+  if (!progressActive) return
+  setFloatingProgress({
+    phase: 'translating',
+    done: progressDone,
+    total: progressTotal,
+    message: partial?.message
+  })
+}
+
+function beginProgress(total: number): void {
+  progressActive = true
+  progressDone = 0
+  progressTotal = total
+  reportProgress({ done: 0, total })
+}
+
+function bumpProgress(n = 1): void {
+  progressDone += n
+  reportProgress()
+}
+
+function endProgress(ok: boolean, message?: string): void {
+  progressActive = false
+  setFloatingProgress({
+    phase: ok ? 'done' : 'error',
+    done: progressDone,
+    total: progressTotal || progressDone,
+    message
+  })
+}
 
 function wakePrefetchWaiters(): void {
   const list = prefetchWaiters
@@ -191,6 +238,7 @@ function onScrollOrResize(): void {
 /** 还原原文并卸掉缓存标记 */
 function clearTranslation(): void {
   stopPrefetch()
+  progressActive = false
   // 新结构：带原文属性的 wrapper 一律还原
   document.querySelectorAll(`[${ATTR_ORIGINAL}]`).forEach((el) => {
     const original = el.getAttribute(ATTR_ORIGINAL)
@@ -202,6 +250,7 @@ function clearTranslation(): void {
   document.querySelectorAll('[data-ai-translator-error]').forEach((el) => {
     el.removeAttribute('data-ai-translator-error')
   })
+  setFloatingProgress({ phase: 'idle', done: 0, total: 0, message: '已还原原文' })
 }
 
 /** 写入原文+译文缓存，并按模式渲染 */
@@ -258,7 +307,10 @@ async function translateBatch(
   if (batch.length === 1) {
     const unit = batch[0]
     const node = map.get(unit.id)
-    if (!node || !node.isConnected) return 0
+    if (!node || !node.isConnected) {
+      bumpProgress(1)
+      return 0
+    }
     if (id !== runId) return 0
     try {
       const result = await requestTranslate({ text: unit.text, mode: 'translate' })
@@ -270,6 +322,7 @@ async function translateBatch(
         failed += 1
       }
     }
+    if (id === runId) bumpProgress(1)
     return failed
   }
 
@@ -285,18 +338,25 @@ async function translateBatch(
     )
     for (const unit of batch) {
       const node = map.get(unit.id)
-      if (!node || !node.isConnected) continue
+      if (!node || !node.isConnected) {
+        bumpProgress(1)
+        continue
+      }
       const translated = parsed.get(unit.id)
       if (!translated) {
         markFailed(node)
         failed += 1
+        bumpProgress(1)
         continue
       }
       applyUnit(mode, node, translated)
+      bumpProgress(1)
     }
   } catch {
     if (id !== runId) return 0
-    return markBatchFailed()
+    const n = markBatchFailed()
+    bumpProgress(batch.length)
+    return n
   }
 
   return failed
@@ -336,6 +396,13 @@ async function translateBandOnce(
   const limited = limitPageUnits(inBand, nodeRoom, PAGE_MAX_CHARS)
   if (limited.units.length === 0) {
     return { truncated: limited.truncated, failed: 0, nodeCount: 0, translated: 0 }
+  }
+
+  // 本波目标段数；预取续跑时累加 total，避免进度条回退
+  if (progressActive) {
+    reportProgress({ total: progressDone + limited.units.length })
+  } else {
+    beginProgress(limited.units.length)
   }
 
   const batches = batchTextUnits(limited.units)
@@ -416,6 +483,8 @@ async function translateFullOnce(mode: PageMode, id: number): Promise<BandResult
     return { truncated: limited.truncated, failed: 0, nodeCount: 0, translated: 0 }
   }
 
+  beginProgress(limited.units.length)
+
   const batches = batchTextUnits(limited.units)
   let failed = 0
 
@@ -450,44 +519,80 @@ async function translatePage(
   stopPrefetch()
   const id = runId
   activeMode = mode
+  setFloatingPageMode(mode)
 
   // 已有缓存的单元先切模式，避免重复打 API
   const cacheHits = applyModeFromCache(mode)
 
-  if (scope === 'full') {
-    const full = await translateFullOnce(mode, id)
-    return {
-      truncated: full.truncated,
-      failed: full.failed,
-      nodeCount: cacheHits + full.nodeCount,
-      cacheHits,
-      background: false,
-      scope: 'full'
+  try {
+    if (scope === 'full') {
+      const full = await translateFullOnce(mode, id)
+      if (id === runId) {
+        endProgress(
+          true,
+          full.failed
+            ? `完成（${full.failed} 段失败）`
+            : full.truncated
+              ? '已达上限'
+              : '全量完成'
+        )
+      }
+      return {
+        truncated: full.truncated,
+        failed: full.failed,
+        nodeCount: cacheHits + full.nodeCount,
+        cacheHits,
+        background: false,
+        scope: 'full'
+      }
     }
-  }
 
-  startPrefetch(mode)
-  // 1) 只等当前视口 → 快速出字
-  const viewport = await pumpPrefetchBand(mode, id, 'viewport')
-  // 2) 立刻后台预取后几屏（不阻塞 popup）
-  void runPrefetchLoop(mode, id)
+    startPrefetch(mode)
+    // 1) 只等当前视口 → 快速出字
+    const viewport = await pumpPrefetchBand(mode, id, 'viewport')
+    // 2) 立刻后台预取后几屏（不阻塞 popup）；进度条继续跟到后台结束前
+    void (async () => {
+      await runPrefetchLoop(mode, id)
+      if (id === runId && progressActive) {
+        endProgress(
+          true,
+          viewport.failed ? `首屏就绪（${viewport.failed} 段失败）` : '翻译完成'
+        )
+      }
+    })()
 
-  let background = false
-  if (prefetchEnabled && id === runId) {
-    const { units, map } = collectTextNodes()
-    background = units.some((u) => {
-      const node = map.get(u.id)
-      return node != null && node.isConnected
-    })
-  }
+    let background = false
+    if (prefetchEnabled && id === runId) {
+      const { units, map } = collectTextNodes()
+      background = units.some((u) => {
+        const node = map.get(u.id)
+        return node != null && node.isConnected
+      })
+    }
 
-  return {
-    truncated: viewport.truncated,
-    failed: viewport.failed,
-    nodeCount: cacheHits + viewport.nodeCount,
-    cacheHits,
-    background,
-    scope: 'partial'
+    // 无后台任务时立刻收尾；有后台则保持 translating
+    if (!background && id === runId) {
+      endProgress(
+        true,
+        viewport.failed ? `完成（${viewport.failed} 段失败）` : '首屏就绪'
+      )
+    } else if (id === runId) {
+      reportProgress({ message: '后台预译中…' })
+    }
+
+    return {
+      truncated: viewport.truncated,
+      failed: viewport.failed,
+      nodeCount: cacheHits + viewport.nodeCount,
+      cacheHits,
+      background,
+      scope: 'partial'
+    }
+  } catch (err) {
+    if (id === runId) {
+      endProgress(false, err instanceof Error ? err.message : String(err))
+    }
+    throw err
   }
 }
 
@@ -523,6 +628,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const settings = await getExtensionSettings()
         const mode = (msg.pageMode as PageMode | undefined) ?? settings.pageMode
         activeMode = mode
+        setFloatingPageMode(mode)
         const cacheHits = applyModeFromCache(mode)
         sendResponse({ ok: true, cacheHits })
       } catch (err) {
@@ -543,5 +649,67 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   return false
 })
+
+async function runFromFab(mode: PageMode): Promise<void> {
+  const settings = await saveExtensionSettings({ pageMode: mode })
+  setFloatingPageMode(mode)
+  await translatePage(mode, settings.translateScope)
+}
+
+async function setScopeFromFab(scope: TranslateScope): Promise<void> {
+  await saveExtensionSettings({ translateScope: scope })
+  setFloatingTranslateScope(scope)
+}
+
+async function initFloatingButtonUi(): Promise<void> {
+  const settings = await getExtensionSettings()
+  activeMode = settings.pageMode
+
+  if (!settings.showFloatingButton) {
+    unmountFloatingButton()
+    return
+  }
+
+  setFloatingPageMode(settings.pageMode)
+  setFloatingTranslateScope(settings.translateScope)
+  mountFloatingButton({
+    onPageMode: (mode) => {
+      void runFromFab(mode)
+    },
+    onTranslateScope: (scope) => {
+      void setScopeFromFab(scope)
+    },
+    onClear: () => {
+      clearTranslation()
+    },
+    onPrimary: () => {
+      void (async () => {
+        const s = await getExtensionSettings()
+        await translatePage(s.pageMode, s.translateScope)
+      })()
+    }
+  })
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync' && area !== 'local') return
+  if (changes.showFloatingButton) {
+    const show = changes.showFloatingButton.newValue !== false
+    if (show) {
+      void initFloatingButtonUi()
+    } else {
+      unmountFloatingButton()
+    }
+  }
+  if (changes.pageMode?.newValue === 'bilingual' || changes.pageMode?.newValue === 'replace') {
+    activeMode = changes.pageMode.newValue
+    setFloatingPageMode(changes.pageMode.newValue)
+  }
+  if (changes.translateScope?.newValue === 'full' || changes.translateScope?.newValue === 'partial') {
+    setFloatingTranslateScope(changes.translateScope.newValue)
+  }
+})
+
+void initFloatingButtonUi()
 
 console.debug('[ai-translator] page-translate content script ready')

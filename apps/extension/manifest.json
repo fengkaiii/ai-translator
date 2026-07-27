@@ -20,7 +20,8 @@
     "storage",
     "activeTab",
     "scripting",
-    "nativeMessaging"
+    "nativeMessaging",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://api.deepseek.com/*"
