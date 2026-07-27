@@ -27,6 +27,10 @@ let shadow: ShadowRoot | null = null
 let iconClickEnabledAt = 0
 /** 关闭后短暂忽略 mouseup，避免选区仍在时立刻又弹出图标 */
 let suppressShowUntil = 0
+/** 面板拖动中：避免 render 把位置重置，并忽略拖动手势触发的外部 mousedown 关闭 */
+let panelDragging = false
+let dragOffsetX = 0
+let dragOffsetY = 0
 
 const FONT =
   '"Helvetica Neue","Avenir Next","Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif'
@@ -96,7 +100,7 @@ function ensureHost(): ShadowRoot {
         border-radius: 12px;
         box-shadow: 0 12px 40px rgba(0,0,0,.18);
         font: 14px/1.5 ${FONT};
-        overflow: auto;
+        overflow: hidden;
         z-index: 2;
         pointer-events: auto;
         color-scheme: light;
@@ -109,7 +113,13 @@ function ensureHost(): ShadowRoot {
         justify-content: space-between;
         gap: 12px;
         margin-bottom: 10px;
+        flex-shrink: 0;
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
       }
+      .panel.dragging .status-row { cursor: grabbing; }
+      .panel.dragging { user-select: none; }
       .status {
         color: #667085;
         font-size: 12px;
@@ -134,6 +144,8 @@ function ensureHost(): ShadowRoot {
         word-break: break-word;
         flex: 1;
         min-height: 2.4em;
+        min-width: 0;
+        overflow: auto;
       }
       .text.err { color: #c44; }
       .actions {
@@ -141,6 +153,7 @@ function ensureHost(): ShadowRoot {
         display: flex;
         align-items: center;
         gap: 10px;
+        flex-shrink: 0;
       }
       .btn {
         border: 0;
@@ -250,15 +263,73 @@ function ensureHost(): ShadowRoot {
     void onPanelClick(e)
   })
 
+  const statusRow = shadow.querySelector('.status-row') as HTMLElement
+  statusRow.addEventListener('mousedown', onPanelDragStart)
+
   return shadow
 }
 
+function clampPanelPos(
+  top: number,
+  left: number,
+  panel: HTMLElement
+): { top: number; left: number } {
+  const w = panel.offsetWidth || 360
+  const h = panel.offsetHeight || 80
+  return {
+    top: Math.min(window.innerHeight - Math.min(h, 48), Math.max(8, top)),
+    left: Math.min(window.innerWidth - w - 8, Math.max(8, left))
+  }
+}
+
+function onPanelDragStart(e: MouseEvent): void {
+  if (e.button !== 0 || !state || state.phase !== 'panel') return
+  // 点语言切换等按钮不进入拖动
+  if ((e.target as HTMLElement).closest('button')) return
+  const panel = ensureHost().querySelector('.panel') as HTMLElement
+  const rect = panel.getBoundingClientRect()
+  panelDragging = true
+  dragOffsetX = e.clientX - rect.left
+  dragOffsetY = e.clientY - rect.top
+  panel.classList.add('dragging')
+  e.preventDefault()
+  e.stopPropagation()
+  document.addEventListener('mousemove', onPanelDragMove, true)
+  document.addEventListener('mouseup', onPanelDragEnd, true)
+}
+
+function onPanelDragMove(e: MouseEvent): void {
+  if (!panelDragging || !state) return
+  const panel = ensureHost().querySelector('.panel') as HTMLElement
+  const pos = clampPanelPos(e.clientY - dragOffsetY, e.clientX - dragOffsetX, panel)
+  panel.style.top = `${pos.top}px`
+  panel.style.left = `${pos.left}px`
+  state.anchor = pos
+}
+
+function onPanelDragEnd(e: MouseEvent): void {
+  if (!panelDragging) return
+  panelDragging = false
+  const panel = shadow?.querySelector('.panel') as HTMLElement | null
+  panel?.classList.remove('dragging')
+  document.removeEventListener('mousemove', onPanelDragMove, true)
+  document.removeEventListener('mouseup', onPanelDragEnd, true)
+  e.stopPropagation()
+}
+
 function hideAll(): void {
+  if (panelDragging) {
+    panelDragging = false
+    document.removeEventListener('mousemove', onPanelDragMove, true)
+    document.removeEventListener('mouseup', onPanelDragEnd, true)
+  }
   state = null
   suppressShowUntil = Date.now() + 300
   if (!shadow) return
+  const panel = shadow.querySelector('.panel') as HTMLElement
+  panel.classList.remove('dragging')
+  panel.hidden = true
   ;(shadow.querySelector('.icon-btn') as HTMLElement).hidden = true
-  ;(shadow.querySelector('.panel') as HTMLElement).hidden = true
 }
 
 function placeFixed(el: HTMLElement, top: number, left: number, widthHint: number): void {
@@ -313,7 +384,9 @@ function renderPanel(): void {
     textEl.textContent = state.result
   }
 
-  placeFixed(panel, state.anchor.top, state.anchor.left, 360)
+  if (!panelDragging) {
+    placeFixed(panel, state.anchor.top, state.anchor.left, 360)
+  }
   panel.hidden = false
 }
 
@@ -496,6 +569,7 @@ function onKeyDown(e: KeyboardEvent): void {
 
 function onDocMouseDown(e: MouseEvent): void {
   if (!host || !state) return
+  if (panelDragging) return
   const path = e.composedPath()
   if (path.includes(host)) return
   hideAll()

@@ -54,10 +54,15 @@
   </head>
   <body>
     <h1 style="font-size: 14px; margin: 0 0 8px">AI Translator</h1>
-    <p class="mode-label">整页模式</p>
-    <div class="mode-toggle" role="group" aria-label="整页翻译模式">
+    <p class="mode-label">展示模式</p>
+    <div class="mode-toggle" role="group" aria-label="展示模式">
       <button id="mode-bilingual" type="button" aria-pressed="true">双语对照</button>
       <button id="mode-replace" type="button" aria-pressed="false">替换原文</button>
+    </div>
+    <p class="mode-label">翻译模式</p>
+    <div class="mode-toggle" role="group" aria-label="翻译模式">
+      <button id="scope-partial" type="button" aria-pressed="true">渐进</button>
+      <button id="scope-full" type="button" aria-pressed="false">全量</button>
     </div>
     <button id="translate-page" type="button">翻译此页</button>
     <button id="clear-page" type="button">清除 / 还原</button>

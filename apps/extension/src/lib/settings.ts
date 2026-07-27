@@ -1,11 +1,14 @@
 export type ExtensionProvider = 'deepseek' | 'cursor'
 export type PageMode = 'bilingual' | 'replace'
+/** 全量=一次翻完全页配额；渐进=视口预取带 + 滚动续翻 */
+export type TranslateScope = 'full' | 'partial'
 export type TargetLang = 'zh' | 'en'
 
 export type ExtensionSettings = {
   provider: ExtensionProvider
   deepseek: { baseUrl: string; apiKey: string; model: string }
   pageMode: PageMode
+  translateScope: TranslateScope
   targetLang?: TargetLang
 }
 
@@ -16,7 +19,8 @@ const DEFAULTS: ExtensionSettings = {
     apiKey: '',
     model: 'deepseek-v4-flash'
   },
-  pageMode: 'bilingual'
+  pageMode: 'bilingual',
+  translateScope: 'partial'
 }
 
 async function readStore(): Promise<Partial<ExtensionSettings>> {
@@ -45,6 +49,7 @@ export async function getExtensionSettings(): Promise<ExtensionSettings> {
       model: raw.deepseek?.model?.trim() || DEFAULTS.deepseek.model
     },
     pageMode: raw.pageMode === 'replace' ? 'replace' : 'bilingual',
+    translateScope: raw.translateScope === 'full' ? 'full' : 'partial',
     targetLang: raw.targetLang === 'zh' || raw.targetLang === 'en' ? raw.targetLang : undefined
   }
 }

@@ -10,4 +10,5 @@
 
 ## Commits
 
+- 2026-07-27 feat(extension): DOM 缓存切换展示，支持渐进预取与划词窗拖动
 - 2026-07-27 chore(branch): 初始化分支 feat/dom-translation-cache（v2.0.2）
