@@ -596,7 +596,7 @@ async function finalizeSelection(
     const front = await getFrontmostAppName()
     if (seq !== selectionSeq) return
     const s = getSettings()
-    if (shouldSkipSelection(front, s.selectionAppMode, s.excludedApps)) {
+    if (shouldSkipSelection(front, s.selectionAppMode, s.excludedApps, s.blacklistedApps)) {
       hideIcon()
       return
     }
