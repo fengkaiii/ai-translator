@@ -171,13 +171,15 @@ function popupHtml(
   const bg = isDark ? '#12151c' : '#ffffff'
   const textColor = isDark ? '#f0f3f8' : '#141822'
   const muted = isDark ? '#8b93a7' : '#667085'
-  const softBg = isDark ? 'rgba(255,255,255,.08)' : 'rgba(47,111,237,.08)'
-  const softHover = isDark ? 'rgba(255,255,255,.12)' : 'rgba(47,111,237,.14)'
-  const accent = isDark ? '#4d8dff' : '#2f6fed'
-  // 主按钮用更柔和的色，避免高饱和蓝突兀
-  const primaryBg = isDark ? '#3a4556' : '#e8eef8'
-  const primaryFg = isDark ? '#e8eef5' : '#2a3a52'
-  const primaryHover = isDark ? '#455264' : '#dde6f4'
+  // 按钮主题色对齐图标青绿；主按钮与设置页选中态同款（淡底+强调字）
+  const softBg = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,104,144,.12)'
+  const softHover = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,104,144,.18)'
+  const accent = '#006890'
+  const btnBg = isDark ? '#1c212c' : '#e8ecf3'
+  const primaryBg = `color-mix(in srgb, ${accent} 22%, ${btnBg})`
+  const primaryFg = accent
+  const primaryHover = `color-mix(in srgb, ${accent} 32%, ${btnBg})`
+  const primaryEdge = 'rgba(0,104,144,.55)'
   const font =
     '"Helvetica Neue","Avenir Next","Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif'
   return `<!doctype html>
@@ -185,14 +187,14 @@ function popupHtml(
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;background:${bg};color:${textColor};font:14px/1.5 ${font};color-scheme:${theme}}
-  .wrap{padding:14px 16px 16px;min-height:100vh;display:flex;flex-direction:column}
-  .status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .wrap{padding:14px 16px 16px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-shrink:0}
   .status{color:${muted};font-size:12px;font-weight:500;min-width:0}
   .link{border:0;background:transparent;color:${accent};padding:0;margin:0;font:12px/1.2 ${font};font-weight:600;letter-spacing:.02em;cursor:pointer;flex-shrink:0}
   .link:hover{opacity:.8;text-decoration:underline}
   .link:disabled{opacity:.45;cursor:not-allowed;text-decoration:none}
-  .text{white-space:pre-wrap;word-break:break-word;flex:1}
-  .actions{margin-top:18px;display:flex;align-items:center;gap:10px}
+  .text{white-space:pre-wrap;word-break:break-word;flex:1;min-height:0;overflow:auto}
+  .actions{margin-top:18px;display:flex;align-items:center;gap:10px;flex-shrink:0}
   .btn{
     border:0;border-radius:999px;padding:8px 18px;cursor:pointer;
     font:13px/1.2 ${font};font-weight:600;letter-spacing:.01em;
@@ -202,6 +204,7 @@ function popupHtml(
   .btn:disabled{opacity:.42;cursor:not-allowed}
   .btn.primary{
     color:${primaryFg};background:${primaryBg};
+    border:1px solid ${primaryEdge};
     box-shadow:0 1px 2px rgba(0,0,0,.06)
   }
   .btn.primary:hover:not(:disabled){background:${primaryHover}}
@@ -596,7 +599,7 @@ async function finalizeSelection(
     const front = await getFrontmostAppName()
     if (seq !== selectionSeq) return
     const s = getSettings()
-    if (shouldSkipSelection(front, s.selectionAppMode, s.excludedApps)) {
+    if (shouldSkipSelection(front, s.selectionAppMode, s.excludedApps, s.blacklistedApps)) {
       hideIcon()
       return
     }

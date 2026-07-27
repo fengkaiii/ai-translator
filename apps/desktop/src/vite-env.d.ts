@@ -22,6 +22,7 @@ export type AppSettings = {
   hotkey: string
   theme: ThemeMode
   excludedApps: ExcludedAppEntry[]
+  blacklistedApps: ExcludedAppEntry[]
 }
 
 export type TranslateRequest = {

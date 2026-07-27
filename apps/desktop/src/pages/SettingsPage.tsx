@@ -19,7 +19,8 @@ const empty: AppSettings = {
   selectionAppMode: 'all',
   hotkey: 'Command+Shift+T',
   theme: 'system',
-  excludedApps: []
+  excludedApps: [],
+  blacklistedApps: []
 }
 
 type Props = {
@@ -38,6 +39,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
   const [appSource, setAppSource] = useState<'running' | 'all'>('all')
   const [cursorModels, setCursorModels] = useState<Array<{ id: string; label: string }>>([])
   const [modelsLoading, setModelsLoading] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   useEffect(() => {
     void window.translator.getSettings().then((s) => {
@@ -46,7 +48,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         provider: s.provider ?? 'deepseek',
         providerApiKeys: s.providerApiKeys ?? {},
         selectionAppMode: s.selectionAppMode ?? 'all',
-        excludedApps: s.excludedApps ?? []
+        excludedApps: s.excludedApps ?? [],
+        blacklistedApps: s.blacklistedApps ?? []
       })
       onThemeChange(s.theme)
       if (s.provider === 'cursor' && s.apiKey.trim()) {
@@ -132,7 +135,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         provider: next.provider ?? 'deepseek',
         providerApiKeys: next.providerApiKeys ?? {},
         selectionAppMode: next.selectionAppMode ?? 'all',
-        excludedApps: next.excludedApps ?? []
+        excludedApps: next.excludedApps ?? [],
+        blacklistedApps: next.blacklistedApps ?? []
       })
       onThemeChange(next.theme)
       setSaved(true)
@@ -154,11 +158,28 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
     }
   }
 
-  async function persistExcluded(apps: ExcludedAppEntry[]): Promise<void> {
-    setForm((f) => ({ ...f, excludedApps: apps }))
+  // 按当前划词模式读取对应的应用列表（白名单 / 黑名单）
+  function activeAppList(f: AppSettings): ExcludedAppEntry[] {
+    return f.selectionAppMode === 'selected' ? f.excludedApps : f.blacklistedApps
+  }
+
+  // 按模式持久化当前编辑的应用列表
+  async function persistAppList(apps: ExcludedAppEntry[]): Promise<void> {
+    const mode = form.selectionAppMode
+    if (mode === 'selected') {
+      setForm((f) => ({ ...f, excludedApps: apps }))
+      try {
+        const next = await window.translator.saveSettings({ excludedApps: apps })
+        setForm((f) => ({ ...f, excludedApps: next.excludedApps ?? apps }))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '保存应用列表失败')
+      }
+      return
+    }
+    setForm((f) => ({ ...f, blacklistedApps: apps }))
     try {
-      const next = await window.translator.saveSettings({ excludedApps: apps })
-      setForm((f) => ({ ...f, excludedApps: next.excludedApps ?? apps }))
+      const next = await window.translator.saveSettings({ blacklistedApps: apps })
+      setForm((f) => ({ ...f, blacklistedApps: next.blacklistedApps ?? apps }))
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存应用列表失败')
     }
@@ -177,7 +198,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
     }
   }
 
-  function addExcluded(name: string): void {
+  function addAppToActiveList(name: string): void {
     const trimmed = name.trim()
     if (!trimmed) return
     const lower = trimmed.toLowerCase()
@@ -185,17 +206,17 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
       setError('不能添加本应用自身')
       return
     }
-    if (form.excludedApps.some((a) => a.name.toLowerCase() === lower)) {
-      setError('该应用已在白名单中')
+    const list = activeAppList(form)
+    if (list.some((a) => a.name.toLowerCase() === lower)) {
+      setError(form.selectionAppMode === 'selected' ? '该应用已在白名单中' : '该应用已在黑名单中')
       return
     }
     setError('')
-    // 加入列表即白名单
-    void persistExcluded([...form.excludedApps, { name: trimmed, enabled: true }])
+    void persistAppList([...list, { name: trimmed, enabled: true }])
   }
 
-  function removeExcluded(name: string): void {
-    void persistExcluded(form.excludedApps.filter((a) => a.name !== name))
+  function removeAppFromActiveList(name: string): void {
+    void persistAppList(activeAppList(form).filter((a) => a.name !== name))
   }
 
   async function onRequestAccess(): Promise<void> {
@@ -312,22 +333,52 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
 
       <div className="field">
         <label htmlFor="apiKey">API Key</label>
-        <input
-          id="apiKey"
-          type="password"
-          value={form.apiKey}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              apiKey: e.target.value,
-              providerApiKeys: {
-                ...(form.providerApiKeys ?? {}),
-                [form.provider]: e.target.value
-              }
-            })
-          }
-          placeholder={activeProvider.apiKeyHint}
-        />
+        <div className="secret-input-row">
+          <input
+            id="apiKey"
+            type={showApiKey ? 'text' : 'password'}
+            value={form.apiKey}
+            autoComplete="off"
+            onChange={(e) =>
+              setForm({
+                ...form,
+                apiKey: e.target.value,
+                providerApiKeys: {
+                  ...(form.providerApiKeys ?? {}),
+                  [form.provider]: e.target.value
+                }
+              })
+            }
+            placeholder={activeProvider.apiKeyHint}
+          />
+          <button
+            type="button"
+            className="secret-toggle"
+            aria-label={showApiKey ? '隐藏 API Key' : '查看 API Key'}
+            aria-pressed={showApiKey}
+            onClick={() => setShowApiKey((v) => !v)}
+          >
+            {showApiKey ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M3.3 3.3a1 1 0 0 1 1.4 0l16 16a1 1 0 1 1-1.4 1.4l-16-16a1 1 0 0 1 0-1.4z"
+                />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="field">
@@ -364,7 +415,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
           {(
             [
               ['all', '全部应用'],
-              ['selected', '已选中的应用']
+              ['selected', '指定应用']
             ] as const
           ).map(([value, label]) => (
             <button
@@ -379,77 +430,81 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         </div>
         <p className="hint">
           {form.selectionAppMode === 'all'
-            ? '当前可在任意应用中划词（本应用除外）。'
+            ? '可在任意应用中划词（本应用除外）；下方黑名单中的应用将被排除。'
             : '仅在下方白名单中的应用可划词；添加即生效。'}
         </p>
 
-        {form.selectionAppMode === 'selected' ? (
-          <>
-            <div className="hotkey-row exclude-pick-row">
-              <select
-                className="exclude-source"
-                value={appSource}
-                onChange={(e) => {
-                  const mode = e.target.value as 'running' | 'all'
-                  setAppSource(mode)
-                  void refreshAppList(mode)
-                }}
-                aria-label="应用来源"
-              >
-                <option value="running">运行中的应用</option>
-                <option value="all">全部应用</option>
-              </select>
-              <select
-                value={pickedApp}
-                onChange={(e) => setPickedApp(e.target.value)}
-                disabled={selectableApps.length === 0}
-                aria-label="选择应用"
-              >
-                {selectableApps.length === 0 ? (
-                  <option value="">暂无可用应用</option>
-                ) : (
-                  selectableApps.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))
-                )}
-              </select>
-              <button
-                type="button"
-                className="btn primary"
-                disabled={!pickedApp}
-                onClick={() => addExcluded(pickedApp)}
-              >
-                添加
-              </button>
-              <button type="button" className="btn" onClick={() => void refreshAppList()}>
-                刷新
-              </button>
-            </div>
-            {form.excludedApps.length > 0 ? (
-              <div className="allowlist-chips" role="list" aria-label="划词白名单">
-                {form.excludedApps.map((item) => (
-                  <span key={item.name} className="allowlist-chip" role="listitem">
-                    <span className="allowlist-chip-name" title={item.name}>
-                      {item.name}
-                    </span>
-                    <button
-                      type="button"
-                      className="allowlist-chip-remove"
-                      aria-label={`移除 ${item.name}`}
-                      onClick={() => removeExcluded(item.name)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+        <div className="hotkey-row exclude-pick-row">
+          <select
+            className="exclude-source"
+            value={appSource}
+            onChange={(e) => {
+              const mode = e.target.value as 'running' | 'all'
+              setAppSource(mode)
+              void refreshAppList(mode)
+            }}
+            aria-label="应用来源"
+          >
+            <option value="running">运行中的应用</option>
+            <option value="all">全部应用</option>
+          </select>
+          <select
+            value={pickedApp}
+            onChange={(e) => setPickedApp(e.target.value)}
+            disabled={selectableApps.length === 0}
+            aria-label="选择应用"
+          >
+            {selectableApps.length === 0 ? (
+              <option value="">暂无可用应用</option>
             ) : (
-              <p className="hint">暂无白名单应用。添加后即可在对应应用中划词。</p>
+              selectableApps.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))
             )}
-          </>
-        ) : null}
+          </select>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={!pickedApp}
+            onClick={() => addAppToActiveList(pickedApp)}
+          >
+            添加
+          </button>
+          <button type="button" className="btn" onClick={() => void refreshAppList()}>
+            刷新
+          </button>
+        </div>
+        {activeAppList(form).length > 0 ? (
+          <div
+            className="allowlist-chips"
+            role="list"
+            aria-label={form.selectionAppMode === 'selected' ? '划词白名单' : '划词黑名单'}
+          >
+            {activeAppList(form).map((item) => (
+              <span key={item.name} className="allowlist-chip" role="listitem">
+                <span className="allowlist-chip-name" title={item.name}>
+                  {item.name}
+                </span>
+                <button
+                  type="button"
+                  className="allowlist-chip-remove"
+                  aria-label={`移除 ${item.name}`}
+                  onClick={() => removeAppFromActiveList(item.name)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="hint">
+            {form.selectionAppMode === 'selected'
+              ? '暂无白名单应用。添加后即可在对应应用中划词。'
+              : '暂无黑名单应用。添加后将在这些应用中禁用划词。'}
+          </p>
+        )}
       </div>
 
       {access && access.platform === 'darwin' ? (

@@ -7,9 +7,10 @@ import {
   type ProviderId
 } from '../src/lib/providers'
 
+/** 划词应用范围：all = 全部应用（可用 blacklistedApps 排除）；selected = 仅 excludedApps 白名单内 */
+
 export type ThemeMode = 'dark' | 'light' | 'system'
 
-/** 划词作用范围：全部应用，或仅白名单中已启用的应用 */
 export type SelectionAppMode = 'all' | 'selected'
 
 export type ExcludedAppEntry = {
@@ -33,6 +34,8 @@ export type AppSettings = {
   theme: ThemeMode
   /** 「已选中」模式下的应用白名单（字段名沿用，避免迁移） */
   excludedApps: ExcludedAppEntry[]
+  /** 「全部应用」模式下的黑名单；名单内禁用划词 */
+  blacklistedApps: ExcludedAppEntry[]
 }
 
 const defaults: AppSettings = {
@@ -45,7 +48,8 @@ const defaults: AppSettings = {
   selectionAppMode: 'all',
   hotkey: process.platform === 'darwin' ? 'Command+Shift+T' : 'Control+Shift+T',
   theme: 'system',
-  excludedApps: []
+  excludedApps: [],
+  blacklistedApps: []
 }
 
 const store = new Store<AppSettings>({
@@ -111,7 +115,8 @@ export function getSettings(): AppSettings {
     selectionAppMode: normalizeSelectionAppMode(store.get('selectionAppMode')),
     hotkey: store.get('hotkey'),
     theme: store.get('theme') ?? 'system',
-    excludedApps: normalizeExcludedApps(store.get('excludedApps') ?? [])
+    excludedApps: normalizeExcludedApps(store.get('excludedApps') ?? []),
+    blacklistedApps: normalizeExcludedApps(store.get('blacklistedApps') ?? [])
   }
 }
 
@@ -121,6 +126,9 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
 
   if (partial.excludedApps !== undefined) {
     next.excludedApps = normalizeExcludedApps(partial.excludedApps)
+  }
+  if (partial.blacklistedApps !== undefined) {
+    next.blacklistedApps = normalizeExcludedApps(partial.blacklistedApps)
   }
   if (partial.selectionAppMode !== undefined) {
     next.selectionAppMode = normalizeSelectionAppMode(partial.selectionAppMode)
