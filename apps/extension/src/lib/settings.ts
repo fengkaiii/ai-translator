@@ -9,6 +9,8 @@ export type ExtensionSettings = {
   deepseek: { baseUrl: string; apiKey: string; model: string }
   pageMode: PageMode
   translateScope: TranslateScope
+  /** 页面右下角浮动按钮；可在设置中关闭 */
+  showFloatingButton: boolean
   targetLang?: TargetLang
 }
 
@@ -20,7 +22,8 @@ const DEFAULTS: ExtensionSettings = {
     model: 'deepseek-v4-flash'
   },
   pageMode: 'bilingual',
-  translateScope: 'partial'
+  translateScope: 'partial',
+  showFloatingButton: true
 }
 
 async function readStore(): Promise<Partial<ExtensionSettings>> {
@@ -50,6 +53,7 @@ export async function getExtensionSettings(): Promise<ExtensionSettings> {
     },
     pageMode: raw.pageMode === 'replace' ? 'replace' : 'bilingual',
     translateScope: raw.translateScope === 'full' ? 'full' : 'partial',
+    showFloatingButton: raw.showFloatingButton !== false,
     targetLang: raw.targetLang === 'zh' || raw.targetLang === 'en' ? raw.targetLang : undefined
   }
 }

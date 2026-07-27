@@ -1,10 +1,88 @@
 import { callDeepSeek, type TranslateRequest } from '@ai-translator/translate-core'
-import { getExtensionSettings } from './lib/settings'
+import { getExtensionSettings, saveExtensionSettings, type PageMode } from './lib/settings'
 import { nativeRequest } from './lib/native'
 import type { TranslateMessage, TranslateResponse } from './lib/translate-client'
 
+const MENU_PARENT = 'ai-translator-page'
+const MENU_BILINGUAL = 'ai-translator-bilingual'
+const MENU_REPLACE = 'ai-translator-replace'
+
+function isRestrictedUrl(url: string | undefined): boolean {
+  if (!url) return true
+  return /^(chrome|edge|about|devtools|chrome-extension|moz-extension):/i.test(url)
+}
+
+function isNoReceiverError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /Receiving end does not exist|Could not establish connection/i.test(msg)
+}
+
+async function injectPageTranslate(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content/page-translate.js']
+  })
+}
+
+async function sendToPage<T>(tabId: number, message: unknown): Promise<T> {
+  try {
+    return (await chrome.tabs.sendMessage(tabId, message)) as T
+  } catch (err) {
+    if (!isNoReceiverError(err)) throw err
+    await injectPageTranslate(tabId)
+    return (await chrome.tabs.sendMessage(tabId, message)) as T
+  }
+}
+
+function createContextMenus(): void {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_PARENT,
+      title: 'AI Translator',
+      contexts: ['page', 'selection', 'editable']
+    })
+    chrome.contextMenus.create({
+      id: MENU_BILINGUAL,
+      parentId: MENU_PARENT,
+      title: '双语对照翻译',
+      contexts: ['page', 'selection', 'editable']
+    })
+    chrome.contextMenus.create({
+      id: MENU_REPLACE,
+      parentId: MENU_PARENT,
+      title: '原文替换翻译',
+      contexts: ['page', 'selection', 'editable']
+    })
+  })
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('AI Translator extension installed')
+  createContextMenus()
+})
+
+// SW 唤醒后也确保菜单存在（removeAll 后再建，避免重复）
+createContextMenus()
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab?.id || isRestrictedUrl(tab.url)) return
+  const mode: PageMode | null =
+    info.menuItemId === MENU_BILINGUAL
+      ? 'bilingual'
+      : info.menuItemId === MENU_REPLACE
+        ? 'replace'
+        : null
+  if (!mode) return
+
+  void (async () => {
+    await saveExtensionSettings({ pageMode: mode })
+    const settings = await getExtensionSettings()
+    await sendToPage(tab.id!, {
+      type: 'page-translate-run',
+      pageMode: mode,
+      translateScope: settings.translateScope
+    })
+  })()
 })
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

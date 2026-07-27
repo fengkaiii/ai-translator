@@ -10,6 +10,9 @@ const baseUrlEl = document.getElementById('baseUrl') as HTMLInputElement
 const apiKeyEl = document.getElementById('apiKey') as HTMLInputElement
 const modelEl = document.getElementById('model') as HTMLInputElement
 const pageModeEl = document.getElementById('pageMode') as HTMLSelectElement
+const showFloatingButtonEl = document.getElementById(
+  'showFloatingButton'
+) as HTMLInputElement
 const statusEl = document.getElementById('status') as HTMLParagraphElement
 const saveBtn = document.getElementById('save') as HTMLButtonElement
 
@@ -47,6 +50,7 @@ async function load(): Promise<void> {
   apiKeyEl.value = s.deepseek.apiKey
   modelEl.value = s.deepseek.model
   pageModeEl.value = s.pageMode
+  showFloatingButtonEl.checked = s.showFloatingButton
   await refreshDesktopStatus()
 }
 
@@ -64,7 +68,8 @@ saveBtn.addEventListener('click', async () => {
         apiKey: apiKeyEl.value,
         model: modelEl.value.trim()
       },
-      pageMode: pageModeEl.value as PageMode
+      pageMode: pageModeEl.value as PageMode,
+      showFloatingButton: showFloatingButtonEl.checked
     })
     statusEl.textContent = '已保存'
   } catch (err) {
