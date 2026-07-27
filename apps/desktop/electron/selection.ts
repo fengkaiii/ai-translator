@@ -185,14 +185,14 @@ function popupHtml(
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;background:${bg};color:${textColor};font:14px/1.5 ${font};color-scheme:${theme}}
-  .wrap{padding:14px 16px 16px;min-height:100vh;display:flex;flex-direction:column}
-  .status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .wrap{padding:14px 16px 16px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-shrink:0}
   .status{color:${muted};font-size:12px;font-weight:500;min-width:0}
   .link{border:0;background:transparent;color:${accent};padding:0;margin:0;font:12px/1.2 ${font};font-weight:600;letter-spacing:.02em;cursor:pointer;flex-shrink:0}
   .link:hover{opacity:.8;text-decoration:underline}
   .link:disabled{opacity:.45;cursor:not-allowed;text-decoration:none}
-  .text{white-space:pre-wrap;word-break:break-word;flex:1}
-  .actions{margin-top:18px;display:flex;align-items:center;gap:10px}
+  .text{white-space:pre-wrap;word-break:break-word;flex:1;min-height:0;overflow:auto}
+  .actions{margin-top:18px;display:flex;align-items:center;gap:10px;flex-shrink:0}
   .btn{
     border:0;border-radius:999px;padding:8px 18px;cursor:pointer;
     font:13px/1.2 ${font};font-weight:600;letter-spacing:.01em;
