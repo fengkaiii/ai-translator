@@ -39,6 +39,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
   const [appSource, setAppSource] = useState<'running' | 'all'>('all')
   const [cursorModels, setCursorModels] = useState<Array<{ id: string; label: string }>>([])
   const [modelsLoading, setModelsLoading] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   useEffect(() => {
     void window.translator.getSettings().then((s) => {
@@ -332,22 +333,52 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
 
       <div className="field">
         <label htmlFor="apiKey">API Key</label>
-        <input
-          id="apiKey"
-          type="password"
-          value={form.apiKey}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              apiKey: e.target.value,
-              providerApiKeys: {
-                ...(form.providerApiKeys ?? {}),
-                [form.provider]: e.target.value
-              }
-            })
-          }
-          placeholder={activeProvider.apiKeyHint}
-        />
+        <div className="secret-input-row">
+          <input
+            id="apiKey"
+            type={showApiKey ? 'text' : 'password'}
+            value={form.apiKey}
+            autoComplete="off"
+            onChange={(e) =>
+              setForm({
+                ...form,
+                apiKey: e.target.value,
+                providerApiKeys: {
+                  ...(form.providerApiKeys ?? {}),
+                  [form.provider]: e.target.value
+                }
+              })
+            }
+            placeholder={activeProvider.apiKeyHint}
+          />
+          <button
+            type="button"
+            className="secret-toggle"
+            aria-label={showApiKey ? '隐藏 API Key' : '查看 API Key'}
+            aria-pressed={showApiKey}
+            onClick={() => setShowApiKey((v) => !v)}
+          >
+            {showApiKey ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M3.3 3.3a1 1 0 0 1 1.4 0l16 16a1 1 0 1 1-1.4 1.4l-16-16a1 1 0 0 1 0-1.4z"
+                />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="field">

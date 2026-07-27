@@ -10,6 +10,7 @@
 
 ## Commits
 
+- 2026-07-27 style(desktop): 按钮改用图标青绿并统一主操作样式，API Key 支持查看
 - 2026-07-27 fix(selection): 翻译小窗底部按钮固定贴底
 - 2026-07-27 feat(Settings): 划词范围支持指定应用文案与全部应用黑名单
 - 2026-07-27 fix(selection): 划词入口传入黑名单列表
