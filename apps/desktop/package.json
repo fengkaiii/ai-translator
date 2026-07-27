@@ -1,6 +1,6 @@
 {
   "name": "ai-translator-desktop",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "AI translator desktop (Electron)",
   "private": true,
   "homepage": "https://github.com/fengkaiii/ai-translator",
@@ -83,7 +83,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",
