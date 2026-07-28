@@ -50,6 +50,15 @@ export type AccessibilityStatus = {
   hint: string
 }
 
+export type SelectionRuntimeStatus = {
+  platform: string
+  ready: boolean
+  installCommand: string | null
+  hasXclip: boolean
+  hasWlPaste: boolean
+  hint: string
+}
+
 export type HistoryEntry = {
   id: string
   text: string
@@ -57,6 +66,7 @@ export type HistoryEntry = {
 }
 
 export type ClipboardHistoryApi = {
+  platform?: string
   list: () => Promise<HistoryEntry[]>
   copy: (id: string) => Promise<void>
   paste: (id: string) => Promise<{ ok: boolean; error?: string }>
@@ -75,6 +85,7 @@ export type TranslatorApi = {
   getAccessibilityStatus: () => Promise<AccessibilityStatus>
   requestAccessibility: () => Promise<AccessibilityStatus>
   revealElectronApp: () => Promise<{ ok: boolean; path: string | null }>
+  getSelectionRuntimeStatus: () => Promise<SelectionRuntimeStatus>
   getFrontmostAppName: () => Promise<string>
   listApps: (mode?: 'running' | 'all') => Promise<string[]>
   listModels: (opts?: {

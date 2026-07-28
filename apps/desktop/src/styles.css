@@ -494,6 +494,18 @@ html[data-theme='light'] .theme-options .btn.active {
   color: var(--warn);
 }
 
+.selection-install-cmd {
+  display: block;
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  word-break: break-all;
+}
+
 .theme-options {
   display: flex;
   gap: 8px;

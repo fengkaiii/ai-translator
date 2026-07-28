@@ -8,6 +8,11 @@ function ClipboardPanelApp(): JSX.Element | null {
   const api = window.clipboardHistory
 
   useEffect(() => {
+    // Linux 面板用更高不透明度（见 panel.css data-platform）
+    document.documentElement.dataset.platform = api?.platform ?? 'unknown'
+  }, [api])
+
+  useEffect(() => {
     if (!api) return
     void api.list().then(setEntries)
     return api.onChanged(setEntries)

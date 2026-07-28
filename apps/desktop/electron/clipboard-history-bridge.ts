@@ -12,7 +12,8 @@ import {
   registerClipboardHistoryHotkey,
   unregisterClipboardHistoryHotkey
 } from './clipboard-history-hotkey'
-import { clipboardStealDepth } from './selection-text'
+import { shouldIgnoreClipboardForHistory } from './selection-text'
+import { isWaylandSession } from './linux-input-hook'
 
 const execFileAsync = promisify(execFile)
 
@@ -118,36 +119,45 @@ function sleep(ms: number): Promise<void> {
 /** 写剪贴板后模拟 Cmd/Ctrl+V 到前台应用 */
 async function simulatePasteKey(): Promise<{ ok: boolean; error?: string }> {
   await sleep(80)
-  try {
-    if (process.platform === 'darwin') {
-      await execFileAsync(
-        'osascript',
-        ['-e', 'tell application "System Events" to keystroke "v" using command down'],
-        { timeout: 600 }
-      )
-      return { ok: true }
-    }
-    if (process.platform === 'win32') {
-      await execFileAsync(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"
-        ],
-        { timeout: 600 }
-      )
-      return { ok: true }
-    }
     try {
-      await execFileAsync('xdotool', ['key', 'ctrl+v'], { timeout: 600 })
-      return { ok: true }
-    } catch {
-      return { ok: false, error: 'xdotool not available' }
+      if (process.platform === 'darwin') {
+        await execFileAsync(
+          'osascript',
+          ['-e', 'tell application "System Events" to keystroke "v" using command down'],
+          { timeout: 600 }
+        )
+        return { ok: true }
+      }
+      if (process.platform === 'win32') {
+        await execFileAsync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"
+          ],
+          { timeout: 600 }
+        )
+        return { ok: true }
+      }
+      // Wayland：避免 xdotool 激活 XWayland 远程桌面等窗口
+      if (isWaylandSession()) {
+        try {
+          await execFileAsync('ydotool', ['key', '29:1', '47:1', '47:0', '29:0'], { timeout: 600 })
+          return { ok: true }
+        } catch {
+          // fall through
+        }
+      }
+      try {
+        await execFileAsync('xdotool', ['key', 'ctrl+v'], { timeout: 600 })
+        return { ok: true }
+      } catch {
+        return { ok: false, error: 'xdotool/ydotool not available' }
+      }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
-  }
 }
 
 /** 开发 / 生产加载剪贴板面板 renderer 入口 */
@@ -182,7 +192,8 @@ function ensurePanelWindow(): BrowserWindow {
     frame: false,
     // 不用 type:panel：与 vibrancy / 拖拽在 hide/show 后冲突
     transparent: true,
-    backgroundColor: '#00000000',
+    // Linux 无 vibrancy，全透明底会导致面板「发虚」；给一层近乎不透明底色
+    backgroundColor: process.platform === 'linux' ? '#28282AF5' : '#00000000',
     hasShadow: true,
     resizable: false,
     movable: true,
@@ -212,6 +223,24 @@ function ensurePanelWindow(): BrowserWindow {
     if (Date.now() < ignoreBlurUntil) return
     if (!panelWin || panelWin.isDestroyed() || !panelWin.isVisible()) return
     if (panelWin.webContents.isDevToolsOpened()) return
+
+    // Linux/Wayland：点面板内部也会误触发 blur，延迟并用光标是否仍在窗内判断
+    if (process.platform === 'linux') {
+      const win = panelWin
+      setTimeout(() => {
+        if (!win || win.isDestroyed() || !win.isVisible()) return
+        if (win.isFocused() || win.webContents.isFocused()) return
+        const p = screen.getCursorScreenPoint()
+        const b = win.getBounds()
+        if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) {
+          return
+        }
+        stopPanelDrag()
+        win.hide()
+      }, 180)
+      return
+    }
+
     stopPanelDrag()
     panelWin.hide()
   })
@@ -229,8 +258,13 @@ function createHost(dir: string): ClipboardHistoryHost {
     onClipboardChange: (cb) => {
       lastClipboardText = clipboard.readText()
       const timer = setInterval(() => {
-        if (clipboardStealDepth > 0) return
         const text = clipboard.readText()
+        // 划词偷取 / 宽限期内 / 偷取结果：不写入历史
+        if (shouldIgnoreClipboardForHistory(text)) {
+          // 同步基准，避免宽限结束后把偷取文本当成「新复制」
+          lastClipboardText = text
+          return
+        }
         if (text !== lastClipboardText) {
           lastClipboardText = text
           cb(text)
@@ -249,9 +283,12 @@ function createHost(dir: string): ClipboardHistoryHost {
       const win = ensurePanelWindow()
       // 每次打开都按当前光标所在屏重新定位
       win.setBounds(panelBoundsOnActiveDisplay())
-      ignoreBlurUntil = Date.now() + 250
+      // Linux 焦点抖动更久，加长忽略 blur 窗口
+      ignoreBlurUntil = Date.now() + (process.platform === 'linux' ? 900 : 400)
+      win.setAlwaysOnTop(true, process.platform === 'linux' ? 'screen-saver' : 'floating')
       win.show()
       win.focus()
+      if (process.platform === 'linux') win.moveTop()
       win.webContents.send('clipboard-history:changed', service?.list() ?? [])
     },
     hidePanel: () => {

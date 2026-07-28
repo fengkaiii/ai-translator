@@ -4,6 +4,7 @@
   "description": "AI translator desktop (Electron)",
   "private": true,
   "homepage": "https://github.com/fengkaiii/ai-translator",
+  "desktopName": "ai-translator-desktop.desktop",
   "main": "./out/main/index.js",
   "author": {
     "name": "fengkaiii",
@@ -12,6 +13,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:linux": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
     "build": "electron-vite build",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac --x64 --arm64",
@@ -112,9 +114,30 @@
       "target": [
         "deb"
       ],
-      "icon": "resources/icon.png",
+      "icon": "build/icons",
       "category": "Utility",
-      "maintainer": "fengkaiii <fengkaiii@users.noreply.github.com>"
+      "maintainer": "fengkaiii <fengkaiii@users.noreply.github.com>",
+      "executableName": "ai-translator-desktop",
+      "desktop": {
+        "StartupWMClass": "ai-translator-desktop"
+      }
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "wl-clipboard | xclip",
+        "libinput-tools",
+        "xdotool | ydotool"
+      ],
+      "afterInstall": "build/linux/after-install.sh"
     }
   }
 }

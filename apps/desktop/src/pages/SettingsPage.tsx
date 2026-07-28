@@ -5,6 +5,7 @@ import type {
   ExcludedAppEntry,
   ProviderId,
   SelectionAppMode,
+  SelectionRuntimeStatus,
   ThemeMode
 } from '../vite-env'
 import { PROVIDERS, getProvider } from '../lib/providers'
@@ -41,6 +42,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
   const [resolvedStorageDir, setResolvedStorageDir] = useState('')
   const [storageUsedFallback, setStorageUsedFallback] = useState(false)
   const [access, setAccess] = useState<AccessibilityStatus | null>(null)
+  const [selectionRuntime, setSelectionRuntime] = useState<SelectionRuntimeStatus | null>(null)
+  const [installCmdCopied, setInstallCmdCopied] = useState(false)
   const [runningApps, setRunningApps] = useState<string[]>([])
   const [pickedApp, setPickedApp] = useState('')
   const [appSource, setAppSource] = useState<'running' | 'all'>('all')
@@ -64,6 +67,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
       }
     })
     void window.translator.getAccessibilityStatus().then(setAccess)
+    void window.translator.getSelectionRuntimeStatus().then(setSelectionRuntime)
     void refreshAppList('all')
     void refreshResolvedStorageDir()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
@@ -162,6 +166,8 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
       void refreshResolvedStorageDir()
       const status = await window.translator.getAccessibilityStatus()
       setAccess(status)
+      const runtime = await window.translator.getSelectionRuntimeStatus()
+      setSelectionRuntime(runtime)
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存失败')
     }
@@ -473,6 +479,37 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
               onChange={(e) => setForm({ ...form, selectionEnabled: e.target.checked })}
             />
           </div>
+
+          {selectionRuntime && selectionRuntime.platform !== 'darwin' ? (
+            <div className="field access-box">
+              <label>划词运行环境</label>
+              <div
+                className={`access-status ${selectionRuntime.ready ? 'ok' : 'warn'}`}
+              >
+                {selectionRuntime.ready ? '已就绪' : '缺少依赖'}
+              </div>
+              <p className="hint">{selectionRuntime.hint}</p>
+              {selectionRuntime.installCommand ? (
+                <div className="actions">
+                  <code className="selection-install-cmd">{selectionRuntime.installCommand}</code>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(selectionRuntime.installCommand!).then(
+                        () => {
+                          setInstallCmdCopied(true)
+                          setTimeout(() => setInstallCmdCopied(false), 1500)
+                        }
+                      )
+                    }}
+                  >
+                    {installCmdCopied ? '已复制' : '复制安装命令'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="field">
             <label>划词应用范围</label>

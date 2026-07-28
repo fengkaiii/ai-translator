@@ -4,7 +4,8 @@ import type {
   TranslateRequest,
   TranslateResponse,
   AccessibilityStatus,
-  HistoryEntry
+  HistoryEntry,
+  SelectionRuntimeStatus
 } from '../src/vite-env'
 
 contextBridge.exposeInMainWorld('translator', {
@@ -19,6 +20,8 @@ contextBridge.exposeInMainWorld('translator', {
     ipcRenderer.invoke('accessibility:request'),
   revealElectronApp: (): Promise<{ ok: boolean; path: string | null }> =>
     ipcRenderer.invoke('accessibility:reveal'),
+  getSelectionRuntimeStatus: (): Promise<SelectionRuntimeStatus> =>
+    ipcRenderer.invoke('selection:runtime-status'),
   getFrontmostAppName: (): Promise<string> => ipcRenderer.invoke('app:frontmost'),
   listApps: (mode: 'running' | 'all' = 'all'): Promise<string[]> =>
     ipcRenderer.invoke('app:list', mode),
@@ -49,6 +52,7 @@ contextBridge.exposeInMainWorld('translatorSelection', {
 })
 
 contextBridge.exposeInMainWorld('clipboardHistory', {
+  platform: process.platform,
   list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('clipboard-history:list'),
   copy: (id: string): Promise<void> => ipcRenderer.invoke('clipboard-history:copy', id),
   paste: (id: string): Promise<{ ok: boolean; error?: string }> =>

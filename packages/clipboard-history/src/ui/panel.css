@@ -20,6 +20,12 @@
     --ch-toast-bg: rgba(40, 40, 42, 0.95);
     --ch-toast-text: rgba(255, 255, 255, 0.9);
   }
+
+  /* Linux 无系统 vibrancy，提高不透明度避免「发虚」 */
+  :root[data-platform='linux'] {
+    --ch-panel-bg: rgba(36, 36, 38, 0.94);
+    --ch-panel-border: rgba(255, 255, 255, 0.16);
+  }
 }
 
 @media (prefers-color-scheme: light) {
@@ -35,6 +41,11 @@
     --ch-icon-hover: rgba(0, 0, 0, 0.85);
     --ch-toast-bg: rgba(50, 50, 52, 0.92);
     --ch-toast-text: rgba(255, 255, 255, 0.95);
+  }
+
+  :root[data-platform='linux'] {
+    --ch-panel-bg: rgba(250, 250, 252, 0.96);
+    --ch-panel-border: rgba(0, 0, 0, 0.12);
   }
 }
 

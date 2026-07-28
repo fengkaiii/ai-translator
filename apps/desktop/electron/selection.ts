@@ -8,12 +8,19 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { getSettings } from './settings'
-import { getSelectedText, getFrontmostAppName, shouldSkipSelection } from './selection-text'
+import {
+  getSelectedText,
+  getFrontmostAppName,
+  shouldSkipSelection,
+  warnLinuxSelectionDepsOnce,
+  getSelectionRuntimeStatus
+} from './selection-text'
 import { translateText } from './translate'
 import type { TargetLang } from './deepseek'
 import { requestAccessibility } from './accessibility'
 import { getLogoDataUrl } from './logo'
 import { isClipboardHistoryWindow } from './clipboard-history-bridge'
+import { isWaylandSession, startLibinputMouseHook } from './linux-input-hook'
 
 let getMainWindow: (() => BrowserWindow | null) | null = null
 
@@ -29,6 +36,8 @@ let handling = false
 let hideTimer: NodeJS.Timeout | null = null
 let mouseHook: { start: () => void; stop: () => void; on: Function; off?: Function } | null =
   null
+/** Wayland：libinput 钩子停止函数（uiohook 在 Wayland 下收不到全局鼠标） */
+let stopLinuxInputHook: (() => void) | null = null
 let mouseupHandler: ((e: { button: number; x: number; y: number }) => void) | null = null
 let mousedownHandler: ((e: { button: number; x: number; y: number }) => void) | null = null
 let downPos: { x: number; y: number } | null = null
@@ -41,6 +50,8 @@ let selectionDebounce: NodeJS.Timeout | null = null
 let selectionSeq = 0
 const ICON_SIZE = 32
 const ICON_OFFSET = 4
+/** Linux 拖选判定阈值（触控板单击常有数像素抖动） */
+const LINUX_DRAG_PX = 24
 
 /**
  * 划词发起时本应用并未持有焦点（用户在别的 App 里选字）。
@@ -66,7 +77,9 @@ function isPointOnIcon(x: number, y: number): boolean {
   if (!iconWin || iconWin.isDestroyed() || !iconWin.isVisible()) return false
   const [ix, iy] = iconWin.getPosition()
   const [iw, ih] = iconWin.getSize()
-  return x >= ix && x <= ix + iw && y >= iy && y <= iy + ih
+  // Linux/Win：坐标与合成器可能有偏差，略放大热区
+  const pad = process.platform === 'darwin' ? 0 : 6
+  return x >= ix - pad && x <= ix + iw + pad && y >= iy - pad && y <= iy + ih + pad
 }
 
 function isIconVisible(): boolean {
@@ -83,6 +96,8 @@ function appHasFocus(): boolean {
  * 小窗关闭后再 app.hide()，把前台还给用户原来的 App。
  */
 function demoteMainIfStolen(): void {
+  // Linux：hide 主窗会在 Dock/任务栏闪一下，划词场景直接跳过
+  if (process.platform === 'linux') return
   if (!auxFromBackground) return
   const main = getMainWindow?.() ?? null
   if (!main || main.isDestroyed()) return
@@ -294,11 +309,13 @@ function ensureIconWindow(): BrowserWindow {
     movable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
+    // 不可聚焦：Linux 可聚焦浮标会抢焦点并导致 Dock 闪烁；点击由主进程钩子处理
     focusable: false,
     show: false,
     hasShadow: false,
     fullscreenable: false,
-    type: process.platform === 'darwin' ? 'panel' : undefined,
+    // Linux：toolbar 提示更不易进任务栏；macOS 仍用 panel
+    type: process.platform === 'darwin' ? 'panel' : process.platform === 'linux' ? 'toolbar' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -306,8 +323,9 @@ function ensureIconWindow(): BrowserWindow {
     }
   })
   iconWin.setAlwaysOnTop(true, 'floating')
-  iconWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
+  // Linux：跨工作区可见会触发 shell 重排/闪烁，仅 macOS 需要
   if (process.platform === 'darwin') {
+    iconWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
     try {
       iconWin.setHasShadow(false)
     } catch {
@@ -318,21 +336,23 @@ function ensureIconWindow(): BrowserWindow {
   return iconWin
 }
 
-function showIconNearCursor(text: string): void {
+function showIconNearCursor(text: string, at?: { x: number; y: number }): void {
   lastText = text
   if (!appHasFocus()) {
     auxFromBackground = true
   }
-  const point = screen.getCursorScreenPoint()
+  // 优先用 mouseup 坐标，避免延迟后光标已移走导致图标「飘远」
+  const point = at ?? screen.getCursorScreenPoint()
   const win = ensureIconWindow()
   const display = screen.getDisplayNearestPoint(point)
-  // 紧贴光标/选区右下一点，避免离文字太远
+  // Linux：贴得更近；其它平台保持原偏移
+  const offset = process.platform === 'linux' ? 2 : ICON_OFFSET
   const x = Math.min(
-    point.x + ICON_OFFSET,
+    point.x + offset,
     display.workArea.x + display.workArea.width - ICON_SIZE - 2
   )
   const y = Math.min(
-    point.y + ICON_OFFSET,
+    point.y + offset,
     display.workArea.y + display.workArea.height - ICON_SIZE - 2
   )
   win.setPosition(Math.max(display.workArea.x, x), Math.max(display.workArea.y, y))
@@ -558,8 +578,10 @@ async function onMouseUp(e: { x: number; y: number }): Promise<void> {
   downAt = 0
 
   const now = Date.now()
+  const dragThreshold =
+    process.platform !== 'darwin' && process.platform !== 'win32' ? LINUX_DRAG_PX : 3
   const dragged =
-    !!start && (Math.abs(e.x - start.x) > 3 || Math.abs(e.y - start.y) > 3)
+    !!start && (Math.abs(e.x - start.x) > dragThreshold || Math.abs(e.y - start.y) > dragThreshold)
   const holdMs = pressedAt ? now - pressedAt : 0
 
   // 双击/三击选词
@@ -574,13 +596,31 @@ async function onMouseUp(e: { x: number; y: number }): Promise<void> {
   }
   dismissedOnDown = false
 
-  if (isPointOnIcon(e.x, e.y)) return
+  // 点到划词图标：macOS 交给窗口内 onclick；Linux/Win 透明窗常收不到点击，主进程直接开小窗
+  if (isPointOnIcon(e.x, e.y)) {
+    if (process.platform !== 'darwin') {
+      const text = lastText
+      if (text) void openPopupWithTranslation(text)
+    }
+    return
+  }
+
+  // Linux：绝不靠「长按」触发（普通点击常 >280ms，会误读残留主键）
+  // 只认拖选 / 双击选词
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
+    if (!dragged && !multiClick) {
+      return
+    }
+  }
 
   // 拖选立刻处理；单击先等是否双击，避免第一次 mouseup 占住 handling 导致双击失效
   const waitMs = dragged ? 60 : multiClick ? 120 : 320
   if (selectionDebounce) clearTimeout(selectionDebounce)
   const seq = ++selectionSeq
-  const allowCopy = dragged || multiClick || holdMs >= 280
+  const allowCopy =
+    process.platform !== 'darwin' && process.platform !== 'win32'
+      ? dragged || multiClick
+      : dragged || multiClick || holdMs >= 280
   const cursor = { x: e.x, y: e.y }
 
   selectionDebounce = setTimeout(() => {
@@ -611,30 +651,25 @@ async function finalizeSelection(
   handling = true
   try {
     // 双击选词后系统选区可能稍晚就绪，再多等一点
-    if (allowCopy) await sleep(80)
+    if (allowCopy) await sleep(process.platform === 'linux' ? 160 : 80)
     if (seq !== selectionSeq) return
-    const text = await getSelectedText({ allowClipboardSteal: allowCopy })
+    const text = await getSelectedText({
+      // Linux 鼠标：跳过主键，直接 Ctrl+C（Chrome Wayland 不写主键）
+      // 快捷键路径不传 skipPrimary，仍优先主键
+      allowClipboardSteal: allowCopy,
+      ...(process.platform !== 'darwin' && process.platform !== 'win32'
+        ? { skipPrimary: true }
+        : {})
+    })
     if (seq !== selectionSeq) return
     if (!text || text.length < 1 || text.length > 2000 || !/\S/.test(text)) {
-      hideIcon()
+      // 未显示过图标时不要 hide（避免无谓副作用）
+      if (iconWin && !iconWin.isDestroyed() && iconWin.isVisible()) hideIcon()
       return
     }
-    // 用最终鼠标位置附近展示
-    const point = screen.getCursorScreenPoint()
-    showIconNearCursor(text)
-    // 若光标已移走，仍以传入坐标微调
-    if (iconWin && !iconWin.isDestroyed()) {
-      const display = screen.getDisplayNearestPoint(point)
-      const x = Math.min(
-        cursor.x + ICON_OFFSET,
-        display.workArea.x + display.workArea.width - ICON_SIZE - 2
-      )
-      const y = Math.min(
-        cursor.y + ICON_OFFSET,
-        display.workArea.y + display.workArea.height - ICON_SIZE - 2
-      )
-      iconWin.setPosition(Math.max(display.workArea.x, x), Math.max(display.workArea.y, y))
-    }
+    console.info('[selection] icon text', text.slice(0, 40))
+    // 固定用 mouseup 坐标，避免再读一次光标导致偏移
+    showIconNearCursor(text, cursor)
   } catch (err) {
     console.warn('[selection] finalize failed', err)
   } finally {
@@ -668,12 +703,8 @@ export function startSelectionWatcher(): void {
   if (running) return
   running = true
   ensureAccessibility()
-
-  if (!loadMouseHook() || !mouseHook) {
-    console.error('[selection] mouse hook unavailable; selection icon disabled')
-    running = false
-    return
-  }
+  // Linux 取词依赖系统剪贴板工具，缺了会导致划词图标永远不出现
+  warnLinuxSelectionDepsOnce()
 
   mouseupHandler = (e: { button: number; x: number; y: number }): void => {
     if (e.button !== 1) return
@@ -684,11 +715,39 @@ export function startSelectionWatcher(): void {
     downPos = { x: e.x, y: e.y }
     downAt = Date.now()
     dismissedOnDown = false
+    // Linux：不再每次点击 spawn wl-paste（GNOME 下易导致 Dock 闪烁）；
+    // 鼠标路径改为 skipPrimary + Ctrl+C，不依赖主键快照
     if (isIconVisible() && !isPointOnIcon(e.x, e.y)) {
       hideIcon()
       dismissedOnDown = true
     }
   }
+
+  // Wayland：uiohook 收不到全局鼠标，改用 libinput
+  if (process.platform !== 'darwin' && process.platform !== 'win32' && isWaylandSession()) {
+    stopLinuxInputHook = startLibinputMouseHook({
+      onMouseDown: (e) => mousedownHandler?.(e),
+      onMouseUp: (e) => mouseupHandler?.(e)
+    })
+    console.info('[selection] using libinput mouse hook (Wayland)')
+    return
+  }
+
+  if (!loadMouseHook() || !mouseHook) {
+    // X11 上 uiohook 失败时再尝试 libinput
+    if (process.platform !== 'darwin' && process.platform !== 'win32') {
+      stopLinuxInputHook = startLibinputMouseHook({
+        onMouseDown: (e) => mousedownHandler?.(e),
+        onMouseUp: (e) => mouseupHandler?.(e)
+      })
+      console.info('[selection] uiohook unavailable; fallback to libinput')
+      return
+    }
+    console.error('[selection] mouse hook unavailable; selection icon disabled')
+    running = false
+    return
+  }
+
   mouseHook.on('mousedown', mousedownHandler)
   mouseHook.on('mouseup', mouseupHandler)
   mouseHook.start()
@@ -702,6 +761,14 @@ export function stopSelectionWatcher(): void {
     selectionDebounce = null
   }
   selectionSeq += 1
+  if (stopLinuxInputHook) {
+    try {
+      stopLinuxInputHook()
+    } catch {
+      // ignore
+    }
+    stopLinuxInputHook = null
+  }
   if (mouseHook && (mouseupHandler || mousedownHandler)) {
     try {
       const remove = (event: string, handler: Function | null): void => {
@@ -718,6 +785,7 @@ export function stopSelectionWatcher(): void {
       // ignore
     }
   }
+  mouseHook = null
   mouseupHandler = null
   mousedownHandler = null
   downPos = null
@@ -737,6 +805,7 @@ export function syncSelectionWatcherFromSettings(): void {
 }
 
 export function registerSelectionIpc(): void {
+  ipcMain.handle('selection:runtime-status', () => getSelectionRuntimeStatus())
   ipcMain.handle('selection:translate', async () => {
     const text = lastText || (await getSelectedText({ allowClipboardSteal: true }))
     if (!text) return
