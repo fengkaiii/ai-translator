@@ -20,7 +20,11 @@ const empty: AppSettings = {
   hotkey: 'Command+Shift+T',
   theme: 'system',
   excludedApps: [],
-  blacklistedApps: []
+  blacklistedApps: [],
+  clipboardHistoryEnabled: false,
+  clipboardHistoryHotkey: 'Command+Shift+V',
+  clipboardHistoryStorageDir: '',
+  launchAtLogin: false
 }
 
 type Props = {
@@ -33,6 +37,9 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [recording, setRecording] = useState(false)
+  const [recordingClipboardHotkey, setRecordingClipboardHotkey] = useState(false)
+  const [resolvedStorageDir, setResolvedStorageDir] = useState('')
+  const [storageUsedFallback, setStorageUsedFallback] = useState(false)
   const [access, setAccess] = useState<AccessibilityStatus | null>(null)
   const [runningApps, setRunningApps] = useState<string[]>([])
   const [pickedApp, setPickedApp] = useState('')
@@ -58,8 +65,19 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
     })
     void window.translator.getAccessibilityStatus().then(setAccess)
     void refreshAppList('all')
+    void refreshResolvedStorageDir()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
   }, [])
+
+  async function refreshResolvedStorageDir(): Promise<void> {
+    try {
+      const r = await window.clipboardHistory.resolvedDir()
+      setResolvedStorageDir(r.dir)
+      setStorageUsedFallback(r.usedFallback)
+    } catch {
+      // ignore — bridge may be unavailable before first sync
+    }
+  }
 
   const activeProvider = getProvider(form.provider ?? 'deepseek')
   const modelOptions =
@@ -141,6 +159,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
       onThemeChange(next.theme)
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
+      void refreshResolvedStorageDir()
       const status = await window.translator.getAccessibilityStatus()
       setAccess(status)
     } catch (err) {
@@ -249,7 +268,38 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
     setRecording(false)
   }
 
-  const isMac = processPlatformIsMac()
+  function onClipboardHotkeyKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
+    if (!recordingClipboardHotkey) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const parts: string[] = []
+    if (e.metaKey || e.ctrlKey) {
+      parts.push(processPlatformIsMac() ? 'Command' : 'Control')
+    }
+    if (e.altKey) parts.push('Alt')
+    if (e.shiftKey) parts.push('Shift')
+
+    const key = e.key
+    if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) return
+
+    const mapped = key.length === 1 ? key.toUpperCase() : key
+    parts.push(mapped)
+    setForm((f) => ({ ...f, clipboardHistoryHotkey: parts.join('+') }))
+    setRecordingClipboardHotkey(false)
+  }
+
+  async function pickClipboardStorageDir(): Promise<void> {
+    const picked = await window.clipboardHistory.pickDir()
+    if (picked) {
+      setForm((f) => ({ ...f, clipboardHistoryStorageDir: picked }))
+    }
+  }
+
+  function resetClipboardStorageDir(): void {
+    setForm((f) => ({ ...f, clipboardHistoryStorageDir: '' }))
+  }
+
   const selectableApps = runningApps.filter((name) => {
     const lower = name.toLowerCase()
     return lower !== 'electron' && lower !== 'ai translator'
@@ -296,7 +346,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         <p className="hint">{activeProvider.hint}</p>
       </div>
 
-      <div className="field">
+      <div className="field field--compact">
         <label htmlFor="model">模型</label>
         <div className="hotkey-row">
           <select
@@ -331,7 +381,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         ) : null}
       </div>
 
-      <div className="field">
+      <div className="field field--compact">
         <label htmlFor="apiKey">API Key</label>
         <div className="secret-input-row">
           <input
@@ -381,7 +431,7 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         </div>
       </div>
 
-      <div className="field">
+      <div className="field field--compact">
         <label htmlFor="baseUrl">Base URL</label>
         <input
           id="baseUrl"
@@ -398,122 +448,240 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         </p>
       </div>
 
-      <div className="field row">
-        <label htmlFor="selection">划词翻译</label>
-        <input
-          id="selection"
-          type="checkbox"
-          checked={form.selectionEnabled}
-          onChange={(e) => setForm({ ...form, selectionEnabled: e.target.checked })}
-        />
-        <span className="hint">开启后，松开鼠标选中文字时显示翻译图标。</span>
-      </div>
+      <details className="settings-section-fold">
+        <summary>
+          <span className="settings-section-fold-title">划词翻译</span>
+          <span
+            className={
+              form.selectionEnabled
+                ? 'settings-section-fold-meta is-on'
+                : 'settings-section-fold-meta'
+            }
+          >
+            {form.selectionEnabled ? '已启用' : '未启用'}
+          </span>
+        </summary>
+        <div className="settings-section-fold-body">
+          <div className="clipboard-enable-row">
+            <div className="clipboard-enable-copy">
+              <label htmlFor="selection">启用划词翻译</label>
+            </div>
+            <input
+              id="selection"
+              type="checkbox"
+              checked={form.selectionEnabled}
+              onChange={(e) => setForm({ ...form, selectionEnabled: e.target.checked })}
+            />
+          </div>
+
+          <div className="field">
+            <label>划词应用范围</label>
+            <div className="theme-options">
+              {(
+                [
+                  ['all', '全部应用'],
+                  ['selected', '指定应用']
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`btn ${form.selectionAppMode === value ? 'active' : ''}`}
+                  onClick={() => void persistSelectionAppMode(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="hint">
+              {form.selectionAppMode === 'all'
+                ? '可在任意应用中划词（本应用除外）；下方黑名单中的应用将被排除。'
+                : '仅在下方白名单中的应用可划词；添加即生效。'}
+            </p>
+
+            <div className="hotkey-row exclude-pick-row">
+              <select
+                className="exclude-source"
+                value={appSource}
+                onChange={(e) => {
+                  const mode = e.target.value as 'running' | 'all'
+                  setAppSource(mode)
+                  void refreshAppList(mode)
+                }}
+                aria-label="应用来源"
+              >
+                <option value="running">运行中的应用</option>
+                <option value="all">全部应用</option>
+              </select>
+              <select
+                value={pickedApp}
+                onChange={(e) => setPickedApp(e.target.value)}
+                disabled={selectableApps.length === 0}
+                aria-label="选择应用"
+              >
+                {selectableApps.length === 0 ? (
+                  <option value="">暂无可用应用</option>
+                ) : (
+                  selectableApps.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={!pickedApp}
+                onClick={() => addAppToActiveList(pickedApp)}
+              >
+                添加
+              </button>
+              <button type="button" className="btn" onClick={() => void refreshAppList()}>
+                刷新
+              </button>
+            </div>
+            {activeAppList(form).length > 0 ? (
+              <div
+                className="allowlist-chips"
+                role="list"
+                aria-label={form.selectionAppMode === 'selected' ? '划词白名单' : '划词黑名单'}
+              >
+                {activeAppList(form).map((item) => (
+                  <span key={item.name} className="allowlist-chip" role="listitem">
+                    <span className="allowlist-chip-name" title={item.name}>
+                      {item.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="allowlist-chip-remove"
+                      aria-label={`移除 ${item.name}`}
+                      onClick={() => removeAppFromActiveList(item.name)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="hint">
+                {form.selectionAppMode === 'selected'
+                  ? '暂无白名单应用。添加后即可在对应应用中划词。'
+                  : '暂无黑名单应用。添加后将在这些应用中禁用划词。'}
+              </p>
+            )}
+          </div>
+        </div>
+      </details>
+
+      <details className="settings-section-fold">
+        <summary>
+          <span className="settings-section-fold-title">剪贴板历史</span>
+          <span
+            className={
+              form.clipboardHistoryEnabled
+                ? 'settings-section-fold-meta is-on'
+                : 'settings-section-fold-meta'
+            }
+          >
+            {form.clipboardHistoryEnabled ? '已启用' : '未启用'}
+          </span>
+        </summary>
+        <div className="settings-section-fold-body">
+          <div className="clipboard-enable-row">
+            <div className="clipboard-enable-copy">
+              <label htmlFor="clipboardHistory">启用剪贴板历史</label>
+              <p className="hint">开启后自动记录复制的纯文本，快捷键唤起历史面板。</p>
+            </div>
+            <input
+              id="clipboardHistory"
+              type="checkbox"
+              checked={form.clipboardHistoryEnabled}
+              onChange={(e) => setForm({ ...form, clipboardHistoryEnabled: e.target.checked })}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="clipboardHistoryHotkey">唤起快捷键</label>
+            <div className="hotkey-row">
+              <input
+                id="clipboardHistoryHotkey"
+                value={form.clipboardHistoryHotkey}
+                readOnly
+                onKeyDown={onClipboardHotkeyKeyDown}
+                placeholder="点击录制后按下组合键"
+              />
+              <button
+                type="button"
+                className={recordingClipboardHotkey ? 'btn primary' : 'btn'}
+                onClick={() => {
+                  setRecording(false)
+                  setRecordingClipboardHotkey((v) => !v)
+                }}
+              >
+                {recordingClipboardHotkey ? '录制中…' : '录制'}
+              </button>
+            </div>
+            <p className="hint">与翻译快捷键独立注册；修改后需保存设置。</p>
+          </div>
+
+          <div className="field clipboard-storage-field">
+            <label htmlFor="clipboardStorageDir">存储目录</label>
+            <div className="clipboard-path-box" id="clipboardStorageDir" title={resolvedStorageDir}>
+              {resolvedStorageDir || '保存后显示实际路径'}
+            </div>
+            <div className="hotkey-row settings-storage-actions">
+              <button type="button" className="btn" onClick={() => void pickClipboardStorageDir()}>
+                选择文件夹
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={!form.clipboardHistoryStorageDir}
+                onClick={resetClipboardStorageDir}
+              >
+                恢复默认
+              </button>
+            </div>
+            {form.clipboardHistoryStorageDir ? (
+              <p className="hint">自定义：{form.clipboardHistoryStorageDir}</p>
+            ) : (
+              <p className="hint">默认使用应用数据目录下的 clipboard-history。</p>
+            )}
+            {storageUsedFallback ? (
+              <p className="error">自定义目录不可写，已回退到默认存储位置。</p>
+            ) : null}
+          </div>
+        </div>
+      </details>
 
       <div className="field">
-        <label>划词应用范围</label>
-        <div className="theme-options">
-          {(
-            [
-              ['all', '全部应用'],
-              ['selected', '指定应用']
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={`btn ${form.selectionAppMode === value ? 'active' : ''}`}
-              onClick={() => void persistSelectionAppMode(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="hint">
-          {form.selectionAppMode === 'all'
-            ? '可在任意应用中划词（本应用除外）；下方黑名单中的应用将被排除。'
-            : '仅在下方白名单中的应用可划词；添加即生效。'}
-        </p>
-
-        <div className="hotkey-row exclude-pick-row">
-          <select
-            className="exclude-source"
-            value={appSource}
-            onChange={(e) => {
-              const mode = e.target.value as 'running' | 'all'
-              setAppSource(mode)
-              void refreshAppList(mode)
-            }}
-            aria-label="应用来源"
-          >
-            <option value="running">运行中的应用</option>
-            <option value="all">全部应用</option>
-          </select>
-          <select
-            value={pickedApp}
-            onChange={(e) => setPickedApp(e.target.value)}
-            disabled={selectableApps.length === 0}
-            aria-label="选择应用"
-          >
-            {selectableApps.length === 0 ? (
-              <option value="">暂无可用应用</option>
-            ) : (
-              selectableApps.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))
-            )}
-          </select>
+        <label htmlFor="hotkey">系统快捷键</label>
+        <div className="hotkey-row">
+          <input
+            id="hotkey"
+            value={form.hotkey}
+            readOnly
+            onKeyDown={onHotkeyKeyDown}
+            placeholder="点击录制后按下组合键"
+          />
           <button
             type="button"
-            className="btn primary"
-            disabled={!pickedApp}
-            onClick={() => addAppToActiveList(pickedApp)}
+            className={recording ? 'btn primary' : 'btn'}
+            onClick={() => {
+              setRecordingClipboardHotkey(false)
+              setRecording((v) => !v)
+            }}
           >
-            添加
-          </button>
-          <button type="button" className="btn" onClick={() => void refreshAppList()}>
-            刷新
+            {recording ? '录制中…' : '录制'}
           </button>
         </div>
-        {activeAppList(form).length > 0 ? (
-          <div
-            className="allowlist-chips"
-            role="list"
-            aria-label={form.selectionAppMode === 'selected' ? '划词白名单' : '划词黑名单'}
-          >
-            {activeAppList(form).map((item) => (
-              <span key={item.name} className="allowlist-chip" role="listitem">
-                <span className="allowlist-chip-name" title={item.name}>
-                  {item.name}
-                </span>
-                <button
-                  type="button"
-                  className="allowlist-chip-remove"
-                  aria-label={`移除 ${item.name}`}
-                  onClick={() => removeAppFromActiveList(item.name)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="hint">
-            {form.selectionAppMode === 'selected'
-              ? '暂无白名单应用。添加后即可在对应应用中划词。'
-              : '暂无黑名单应用。添加后将在这些应用中禁用划词。'}
-          </p>
-        )}
+        <p className="hint">选中文字后按快捷键：填入并自动翻译；未选中则仅唤起窗口。</p>
       </div>
 
       {access && access.platform === 'darwin' ? (
         <div className="field access-box">
           <label>辅助功能权限</label>
-          <p className="hint">
-            划词翻译需要授权辅助功能。开发模式下请添加{' '}
-            <strong>Electron</strong>。若没有，点「在 Finder 中显示」后，到系统设置里用「+」手动添加。
-          </p>
           <div className={`access-status ${access.trusted ? 'ok' : 'warn'}`}>
             {access.trusted ? '已授权' : '未授权'}
             {access.electronAppPath ? ` · ${access.electronAppPath}` : ''}
@@ -530,25 +698,14 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         </div>
       ) : null}
 
-      <div className="field">
-        <label htmlFor="hotkey">系统快捷键</label>
-        <div className="hotkey-row">
-          <input
-            id="hotkey"
-            value={form.hotkey}
-            readOnly
-            onKeyDown={onHotkeyKeyDown}
-            placeholder="点击录制后按下组合键"
-          />
-          <button
-            type="button"
-            className={recording ? 'btn primary' : 'btn'}
-            onClick={() => setRecording((v) => !v)}
-          >
-            {recording ? '录制中…' : '录制'}
-          </button>
-        </div>
-        <p className="hint">选中文字后按快捷键：填入并自动翻译；未选中则仅唤起窗口。</p>
+      <div className="field row">
+        <label htmlFor="launchAtLogin">开机自启</label>
+        <input
+          id="launchAtLogin"
+          type="checkbox"
+          checked={form.launchAtLogin}
+          onChange={(e) => setForm({ ...form, launchAtLogin: e.target.checked })}
+        />
       </div>
 
       {error ? <div className="error">{error}</div> : null}
@@ -558,7 +715,6 @@ export default function SettingsPage({ theme, onThemeChange }: Props) {
         <button className="btn primary" onClick={() => void save()}>
           保存设置
         </button>
-        {isMac ? <span className="hint">macOS 首次使用全局快捷键可能需要辅助功能权限。</span> : null}
       </div>
     </div>
   )

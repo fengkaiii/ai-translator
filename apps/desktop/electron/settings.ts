@@ -36,6 +36,12 @@ export type AppSettings = {
   excludedApps: ExcludedAppEntry[]
   /** 「全部应用」模式下的黑名单；名单内禁用划词 */
   blacklistedApps: ExcludedAppEntry[]
+  clipboardHistoryEnabled: boolean
+  clipboardHistoryHotkey: string
+  /** 空字符串表示使用默认存储目录 */
+  clipboardHistoryStorageDir: string
+  /** 开机自启，默认关闭 */
+  launchAtLogin: boolean
 }
 
 const defaults: AppSettings = {
@@ -49,7 +55,12 @@ const defaults: AppSettings = {
   hotkey: process.platform === 'darwin' ? 'Command+Shift+T' : 'Control+Shift+T',
   theme: 'system',
   excludedApps: [],
-  blacklistedApps: []
+  blacklistedApps: [],
+  clipboardHistoryEnabled: false,
+  clipboardHistoryHotkey:
+    process.platform === 'darwin' ? 'Command+Shift+V' : 'Control+Shift+V',
+  clipboardHistoryStorageDir: '',
+  launchAtLogin: false
 }
 
 const store = new Store<AppSettings>({
@@ -116,7 +127,11 @@ export function getSettings(): AppSettings {
     hotkey: store.get('hotkey'),
     theme: store.get('theme') ?? 'system',
     excludedApps: normalizeExcludedApps(store.get('excludedApps') ?? []),
-    blacklistedApps: normalizeExcludedApps(store.get('blacklistedApps') ?? [])
+    blacklistedApps: normalizeExcludedApps(store.get('blacklistedApps') ?? []),
+    clipboardHistoryEnabled: store.get('clipboardHistoryEnabled') ?? false,
+    clipboardHistoryHotkey: store.get('clipboardHistoryHotkey') ?? defaults.clipboardHistoryHotkey,
+    clipboardHistoryStorageDir: String(store.get('clipboardHistoryStorageDir') ?? '').trim(),
+    launchAtLogin: store.get('launchAtLogin') ?? false
   }
 }
 
@@ -132,6 +147,9 @@ export function saveSettings(partial: Partial<AppSettings>): AppSettings {
   }
   if (partial.selectionAppMode !== undefined) {
     next.selectionAppMode = normalizeSelectionAppMode(partial.selectionAppMode)
+  }
+  if (partial.clipboardHistoryStorageDir !== undefined) {
+    next.clipboardHistoryStorageDir = String(partial.clipboardHistoryStorageDir).trim()
   }
 
   if (partial.provider !== undefined && isProviderId(partial.provider)) {

@@ -7,6 +7,17 @@ import { clipboard } from 'electron'
 
 const execFileAsync = promisify(execFile)
 
+/** 划词 Cmd+C 偷取剪贴板期间 >0；历史轮询应跳过 */
+export let clipboardStealDepth = 0
+
+export function beginClipboardSteal(): void {
+  clipboardStealDepth += 1
+}
+
+export function endClipboardSteal(): void {
+  if (clipboardStealDepth > 0) clipboardStealDepth -= 1
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -239,44 +250,49 @@ async function getMacSelectedViaAX(): Promise<string> {
  * 仅应作为 AX 失败后的兜底。
  */
 async function copySelectionViaShortcut(): Promise<string> {
-  const previous = clipboard.readText()
-  const marker = `__AI_TRANSLATOR_MARK_${Date.now()}__`
-  clipboard.writeText(marker)
-
+  beginClipboardSteal()
   try {
-    if (process.platform === 'darwin') {
-      await runOsascript(
-        'tell application "System Events" to keystroke "c" using command down',
-        400
-      )
-    } else if (process.platform === 'win32') {
-      await execFileAsync(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')"
-        ],
-        { timeout: 600 }
-      )
-    } else {
+    const previous = clipboard.readText()
+    const marker = `__AI_TRANSLATOR_MARK_${Date.now()}__`
+    clipboard.writeText(marker)
+
+    try {
+      if (process.platform === 'darwin') {
+        await runOsascript(
+          'tell application "System Events" to keystroke "c" using command down',
+          400
+        )
+      } else if (process.platform === 'win32') {
+        await execFileAsync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')"
+          ],
+          { timeout: 600 }
+        )
+      } else {
+        clipboard.writeText(previous)
+        return ''
+      }
+
+      await sleep(120)
+      const text = clipboard.readText()
       clipboard.writeText(previous)
+
+      if (!text || text === marker) return ''
+      return text.trim()
+    } catch {
+      try {
+        clipboard.writeText(previous)
+      } catch {
+        // ignore
+      }
       return ''
     }
-
-    await sleep(120)
-    const text = clipboard.readText()
-    clipboard.writeText(previous)
-
-    if (!text || text === marker) return ''
-    return text.trim()
-  } catch {
-    try {
-      clipboard.writeText(previous)
-    } catch {
-      // ignore
-    }
-    return ''
+  } finally {
+    endClipboardSteal()
   }
 }
 

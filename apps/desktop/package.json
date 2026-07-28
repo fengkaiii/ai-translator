@@ -1,6 +1,6 @@
 {
   "name": "ai-translator-desktop",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "AI translator desktop (Electron)",
   "private": true,
   "homepage": "https://github.com/fengkaiii/ai-translator",
@@ -22,6 +22,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-translator/clipboard-history": "*",
     "@ai-translator/translate-core": "*",
     "@cursor/sdk": "^1.0.24",
     "electron-store": "^8.2.0",

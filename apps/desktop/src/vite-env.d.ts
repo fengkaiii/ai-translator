@@ -23,6 +23,12 @@ export type AppSettings = {
   theme: ThemeMode
   excludedApps: ExcludedAppEntry[]
   blacklistedApps: ExcludedAppEntry[]
+  clipboardHistoryEnabled: boolean
+  clipboardHistoryHotkey: string
+  /** 空字符串表示使用默认存储目录 */
+  clipboardHistoryStorageDir: string
+  /** 开机自启，默认关闭 */
+  launchAtLogin: boolean
 }
 
 export type TranslateRequest = {
@@ -42,6 +48,24 @@ export type AccessibilityStatus = {
   trusted: boolean
   electronAppPath: string | null
   hint: string
+}
+
+export type HistoryEntry = {
+  id: string
+  text: string
+  createdAt: number
+}
+
+export type ClipboardHistoryApi = {
+  list: () => Promise<HistoryEntry[]>
+  copy: (id: string) => Promise<void>
+  paste: (id: string) => Promise<{ ok: boolean; error?: string }>
+  hide: () => Promise<void>
+  beginDrag: () => void
+  endDrag: () => void
+  pickDir: () => Promise<string | null>
+  resolvedDir: () => Promise<{ dir: string; usedFallback: boolean; defaultDir: string }>
+  onChanged: (callback: (entries: HistoryEntry[]) => void) => () => void
 }
 
 export type TranslatorApi = {
@@ -64,6 +88,7 @@ export type TranslatorApi = {
 declare global {
   interface Window {
     translator: TranslatorApi
+    clipboardHistory: ClipboardHistoryApi
   }
 }
 
