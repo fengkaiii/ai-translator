@@ -22,13 +22,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ai-translator/clipboard-history": "*",
-    "@ai-translator/translate-core": "*",
     "@cursor/sdk": "^1.0.24",
     "electron-store": "^8.2.0",
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
+    "@ai-translator/clipboard-history": "*",
+    "@ai-translator/translate-core": "*",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -62,7 +62,9 @@
       "node_modules/**/*",
       "resources/**/*",
       "!**/node_modules/@ai-translator/translate-core",
-      "!**/node_modules/@ai-translator/translate-core/**"
+      "!**/node_modules/@ai-translator/translate-core/**",
+      "!**/node_modules/@ai-translator/clipboard-history",
+      "!**/node_modules/@ai-translator/clipboard-history/**"
     ],
     "extraResources": [
       {

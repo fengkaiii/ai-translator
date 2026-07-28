@@ -10,5 +10,7 @@
 
 ## Commits
 
+
+- 2026-07-28 fix(desktop): 将 workspace 包改为 devDependency 并修复 CI asar 打包
 - 2026-07-28 chore(branch): 初始化分支 fix/desktop-electron-builder-asar（v2.0.12）
 
