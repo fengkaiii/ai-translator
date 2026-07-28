@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 
 // 共享包是 TS 源码，需打进 bundle，不能当 node 外部依赖
 const bundleWorkspace = externalizeDepsPlugin({
-  exclude: ['@ai-translator/translate-core']
+  exclude: ['@ai-translator/translate-core', '@ai-translator/clipboard-history']
 })
 
 export default defineConfig({
@@ -33,7 +33,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'index.html')
+          index: resolve(__dirname, 'index.html'),
+          'clipboard-history': resolve(__dirname, 'clipboard-history.html')
         }
       }
     },

@@ -2,20 +2,20 @@
 
 :root,
 html[data-theme='dark'] {
-  --bg: #0b0d12;
-  --surface: #12151c;
-  --surface-2: #181c25;
-  --input-bg: #0e1117;
-  --result-bg: #0c0f14;
-  --btn-bg: #1c212c;
-  --border: #2a3140;
+  --bg: #141820;
+  --surface: #1b202a;
+  --surface-2: #232936;
+  --input-bg: #1a1f29;
+  --result-bg: #171c26;
+  --btn-bg: #2a3140;
+  --border: #3d4658;
   --text: #f0f3f8;
-  --muted: #8b93a7;
-  --accent: #006890;
-  --accent-hover: #005678;
+  --muted: #9aa3b5;
+  --accent: #1a8fb5;
+  --accent-hover: #157a9c;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(0, 104, 144, 0.18);
-  --accent-line: rgba(0, 104, 144, 0.55);
+  --accent-soft: rgba(26, 143, 181, 0.2);
+  --accent-line: rgba(26, 143, 181, 0.55);
   --danger: #ff6b7a;
   --ok: #3ecf8e;
   --warn: #e8b84a;
@@ -300,6 +300,20 @@ html[data-theme='light'] .btn {
   --gel-shade: rgba(40, 60, 100, 0.08);
   --gel-edge: color-mix(in srgb, var(--text) 10%, transparent);
   --gel-glow: rgba(40, 55, 90, 0.12);
+}
+
+/* 深色模式：按钮边框更清晰，避免与底色糊在一起 */
+html[data-theme='dark'] .btn {
+  --gel-shine: rgba(255, 255, 255, 0.14);
+  --gel-shade: rgba(0, 0, 0, 0.22);
+  --gel-edge: color-mix(in srgb, var(--text) 28%, var(--border));
+  --gel-glow: rgba(0, 0, 0, 0.28);
+  border-color: color-mix(in srgb, var(--border) 55%, #8b93a7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.18),
+    0 4px 12px var(--gel-glow),
+    0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .btn::before {
@@ -607,4 +621,172 @@ select {
 
 .model-select {
   width: 100%;
+}
+
+/* 模型 / API Key / Base URL：控件更矮 */
+.field--compact input,
+.field--compact select {
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.field--compact .secret-input-row input {
+  padding-right: 38px;
+}
+
+.field--compact .secret-toggle {
+  width: 28px;
+  height: 28px;
+  right: 4px;
+}
+
+.field--compact .hotkey-row {
+  align-items: center;
+}
+
+.settings-section-fold {
+  margin-top: 20px;
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border));
+  border-radius: calc(var(--radius) + 2px);
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent) 4%, var(--surface-2)) 0%,
+      var(--surface-2) 42%
+    );
+  overflow: hidden;
+}
+
+.settings-section-fold[open] {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.settings-section-fold > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  list-style: none;
+  user-select: none;
+}
+
+.settings-section-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section-fold > summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.settings-section-fold[open] > summary::before {
+  transform: rotate(45deg);
+  border-color: var(--accent);
+}
+
+.settings-section-fold-title {
+  flex: 1;
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.settings-section-fold-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
+.settings-section-fold[open] .settings-section-fold-meta,
+.settings-section-fold-meta.is-on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.settings-section-fold-body {
+  padding: 4px 14px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, var(--accent));
+}
+
+.clipboard-enable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0 18px;
+  padding: 12px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.clipboard-enable-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.clipboard-enable-copy label {
+  display: block;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.clipboard-enable-copy .hint {
+  margin: 4px 0 0;
+}
+
+.clipboard-enable-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-section-fold + .settings-section-fold {
+  margin-top: 12px;
+}
+
+.settings-section-fold + .field {
+  margin-top: 16px;
+}
+
+.clipboard-path-box {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+}
+
+.clipboard-storage-field .settings-storage-actions {
+  margin-top: 10px;
+}
+
+.settings-storage-actions {
+  margin-top: 8px;
 }

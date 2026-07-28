@@ -1,0 +1,208 @@
+/* Spotlight 风格浮动面板：毛玻璃、圆角、深浅色自适应 */
+
+:root {
+  --ch-font: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ch-radius: 16px;
+  --ch-row-radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ch-panel-bg: rgba(40, 40, 42, 0.55);
+    --ch-panel-border: rgba(255, 255, 255, 0.12);
+    --ch-header-border: rgba(255, 255, 255, 0.08);
+    --ch-text: rgba(255, 255, 255, 0.92);
+    --ch-muted: rgba(255, 255, 255, 0.45);
+    --ch-row-hover: rgba(255, 255, 255, 0.08);
+    --ch-row-active: rgba(255, 255, 255, 0.12);
+    --ch-icon: rgba(255, 255, 255, 0.55);
+    --ch-icon-hover: rgba(255, 255, 255, 0.95);
+    --ch-toast-bg: rgba(40, 40, 42, 0.95);
+    --ch-toast-text: rgba(255, 255, 255, 0.9);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --ch-panel-bg: rgba(255, 255, 255, 0.45);
+    --ch-panel-border: rgba(0, 0, 0, 0.1);
+    --ch-header-border: rgba(0, 0, 0, 0.06);
+    --ch-text: rgba(0, 0, 0, 0.88);
+    --ch-muted: rgba(0, 0, 0, 0.45);
+    --ch-row-hover: rgba(0, 0, 0, 0.05);
+    --ch-row-active: rgba(0, 0, 0, 0.08);
+    --ch-icon: rgba(0, 0, 0, 0.4);
+    --ch-icon-hover: rgba(0, 0, 0, 0.85);
+    --ch-toast-bg: rgba(50, 50, 52, 0.92);
+    --ch-toast-text: rgba(255, 255, 255, 0.95);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--ch-font);
+  background: transparent;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ch-panel {
+  height: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ch-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--ch-radius);
+  background: var(--ch-panel-bg);
+  /* 细描边接近原边框色，配合系统 vibrancy 形成毛玻璃 */
+  border: 1px solid var(--ch-panel-border);
+  backdrop-filter: blur(28px) saturate(1.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+/* 标题栏拖拽由 IPC 手动实现（-webkit-app-region 在 hide/show 后会失效） */
+.ch-header {
+  flex-shrink: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--ch-header-border);
+  cursor: grab;
+  user-select: none;
+}
+
+.ch-header:active {
+  cursor: grabbing;
+}
+
+.ch-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--ch-muted);
+}
+
+.ch-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  list-style: none;
+  margin: 0;
+}
+
+.ch-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ch-list::-webkit-scrollbar-thumb {
+  background: var(--ch-row-hover);
+  border-radius: 4px;
+}
+
+.ch-empty {
+  padding: 48px 20px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--ch-muted);
+}
+
+.ch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--ch-row-radius);
+  cursor: default;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.ch-row:hover {
+  background: var(--ch-row-hover);
+}
+
+.ch-row:active {
+  background: var(--ch-row-active);
+}
+
+.ch-preview {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ch-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-copy-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ch-icon);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.ch-copy-btn:hover {
+  color: var(--ch-icon-hover);
+  background: var(--ch-row-hover);
+}
+
+.ch-copy-btn svg {
+  display: block;
+}
+
+.ch-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ch-toast-text);
+  background: var(--ch-toast-bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  animation: ch-toast-in 0.2s ease;
+}
+
+@keyframes ch-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

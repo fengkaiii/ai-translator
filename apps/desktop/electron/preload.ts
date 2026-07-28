@@ -3,7 +3,8 @@ import type {
   AppSettings,
   TranslateRequest,
   TranslateResponse,
-  AccessibilityStatus
+  AccessibilityStatus,
+  HistoryEntry
 } from '../src/vite-env'
 
 contextBridge.exposeInMainWorld('translator', {
@@ -45,4 +46,28 @@ contextBridge.exposeInMainWorld('translatorSelection', {
   translateSelection: (): Promise<void> => ipcRenderer.invoke('selection:translate'),
   polishSelection: (): Promise<void> => ipcRenderer.invoke('selection:polish'),
   swapSelectionLanguage: (): Promise<void> => ipcRenderer.invoke('selection:swap-language')
+})
+
+contextBridge.exposeInMainWorld('clipboardHistory', {
+  list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('clipboard-history:list'),
+  copy: (id: string): Promise<void> => ipcRenderer.invoke('clipboard-history:copy', id),
+  paste: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('clipboard-history:paste', id),
+  hide: (): Promise<void> => ipcRenderer.invoke('clipboard-history:hide'),
+  beginDrag: (): void => {
+    ipcRenderer.send('clipboard-history:drag-start')
+  },
+  endDrag: (): void => {
+    ipcRenderer.send('clipboard-history:drag-end')
+  },
+  pickDir: (): Promise<string | null> => ipcRenderer.invoke('clipboard-history:pick-dir'),
+  resolvedDir: (): Promise<{ dir: string; usedFallback: boolean; defaultDir: string }> =>
+    ipcRenderer.invoke('clipboard-history:resolved-dir'),
+  onChanged: (callback: (entries: HistoryEntry[]) => void): (() => void) => {
+    const listener = (_: Electron.IpcRendererEvent, entries: HistoryEntry[]): void => {
+      callback(entries)
+    }
+    ipcRenderer.on('clipboard-history:changed', listener)
+    return () => ipcRenderer.removeListener('clipboard-history:changed', listener)
+  }
 })

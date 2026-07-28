@@ -49,5 +49,4 @@ export function unregisterHotkey(): void {
     globalShortcut.unregister(currentAccelerator)
     currentAccelerator = ''
   }
-  globalShortcut.unregisterAll()
 }

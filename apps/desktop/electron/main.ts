@@ -23,6 +23,11 @@ import {
   clearNativeBridgePortFile,
   installNativeHostManifest
 } from './native-host-install'
+import {
+  syncClipboardHistoryFromSettings,
+  stopClipboardHistory
+} from './clipboard-history-bridge'
+import { syncLaunchAtLogin } from './login-item'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -85,6 +90,8 @@ function setupIpc(): void {
       fillAndTranslate
     })
     syncSelectionWatcherFromSettings()
+    syncClipboardHistoryFromSettings()
+    syncLaunchAtLogin(next.launchAtLogin)
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('settings-changed', next)
     }
@@ -138,6 +145,8 @@ app.whenReady().then(() => {
     fillAndTranslate
   })
   syncSelectionWatcherFromSettings()
+  syncClipboardHistoryFromSettings()
+  syncLaunchAtLogin(getSettings().launchAtLogin)
 
   // Host 清单必须先装：即使 bridge 失败，也要把 launcher 改成当前安装路径（避免残留 npm run dev 路径）
   const installed = installNativeHostManifest()
@@ -164,19 +173,23 @@ app.on('window-all-closed', () => {
   const onlyAuxLeft = BrowserWindow.getAllWindows().every((w) => isAuxWindow(w))
   if (onlyAuxLeft) {
     stopSelectionWatcher()
+    stopClipboardHistory()
   }
   if (process.platform !== 'darwin') {
     stopSelectionWatcher()
+    stopClipboardHistory()
     unregisterHotkey()
     app.quit()
   } else if (BrowserWindow.getAllWindows().length === 0) {
     stopSelectionWatcher()
+    stopClipboardHistory()
   }
 })
 
 app.on('will-quit', () => {
   stopSelectionWatcher()
   unregisterHotkey()
+  stopClipboardHistory()
   stopNativeBridge()
   clearNativeBridgePortFile()
 })

@@ -10,4 +10,5 @@
 
 ## Commits
 
+- 2026-07-28 feat(ClipboardHistory): 新增桌面剪贴板历史面板并优化设置页与开机自启
 - 2026-07-28 chore(branch): 初始化分支 feat/desktop-clipboard-history（v2.0.11）

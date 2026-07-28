@@ -13,6 +13,7 @@ import { translateText } from './translate'
 import type { TargetLang } from './deepseek'
 import { requestAccessibility } from './accessibility'
 import { getLogoDataUrl } from './logo'
+import { isClipboardHistoryWindow } from './clipboard-history-bridge'
 
 let getMainWindow: (() => BrowserWindow | null) | null = null
 
@@ -750,5 +751,5 @@ export function registerSelectionIpc(): void {
 }
 
 export function isAuxWindow(win: BrowserWindow): boolean {
-  return win === iconWin || win === popupWin
+  return win === iconWin || win === popupWin || isClipboardHistoryWindow(win)
 }
